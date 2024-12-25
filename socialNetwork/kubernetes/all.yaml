@@ -5130,6 +5130,9 @@ spec:
   - name: "5778"
     port: 5778
     targetPort: 5778
+  - name: "16685"
+    port: 16685
+    targetPort: 16685
   - name: "16686"
     port: 16686
     targetPort: 16686
@@ -5609,6 +5612,7 @@ spec:
         - containerPort: 6831
         - containerPort: 6832
         - containerPort: 5778
+        - containerPort: 16685
         - containerPort: 16686
         - containerPort: 14268
         - containerPort: 9411
