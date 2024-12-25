@@ -5602,7 +5602,7 @@ spec:
     spec:
       containers:
       - name: "jaeger"
-        image: docker.io/jaegertracing/all-in-one:latest
+        image: docker.io/jaegertracing/all-in-one:1.60
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5775
