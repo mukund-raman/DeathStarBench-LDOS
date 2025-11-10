@@ -1,0 +1,21 @@
+# Consolidated Python dependencies for DeathStarBench-LDOS
+# This covers SocialNetwork scripts and Dapr sample apps used in this repo.
+
+# SocialNetwork tooling
+aiohttp
+asyncio
+PyYAML>=6.0
+
+# Helm hook utilities (optional but harmless locally)
+redis>=5.0
+pymongo>=4.3
+
+# Dapr apps (video-pipe, proxy, video-sharing)
+dapr
+dapr-ext-grpc
+grpcio
+protobuf
+prometheus-client
+ffmpeg-python
+numpy
+opencv-python

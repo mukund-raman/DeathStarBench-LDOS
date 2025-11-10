@@ -38,6 +38,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - compose-post-service
 
   home-timeline-redis:
     depends_on:
@@ -49,6 +53,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - home-timeline-redis
 
   home-timeline-service:
     depends_on:
@@ -64,6 +72,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - home-timeline-service
 
   media-frontend:
     depends_on:
@@ -80,6 +92,10 @@ services:
     volumes:
       - ./media-frontend/lua-scripts:/usr/local/openresty/nginx/lua-scripts
       - ./media-frontend/conf/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
+    networks:
+      default:
+        aliases:
+          - media-frontend
 
   media-memcached:
     depends_on:
@@ -92,6 +108,10 @@ services:
       - "-t 8"
       - "-I 32m"
       - "-c 4096"
+    networks:
+      default:
+        aliases:
+          - media-memcached
 
   media-mongodb:
     depends_on:
@@ -104,6 +124,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - media-mongodb
 
   media-service:
     depends_on:
@@ -120,6 +144,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - media-service
 
   nginx-web-server:
     depends_on:
@@ -141,6 +169,10 @@ services:
       - ./gen-lua:/gen-lua
       - ./docker/openresty-thrift/lua-thrift:/usr/local/openresty/lualib/thrift
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - nginx-web-server
 
   post-storage-memcached:
     depends_on:
@@ -153,6 +185,10 @@ services:
       - "-t 8"
       - "-I 32m"
       - "-c 4096"
+    networks:
+      default:
+        aliases:
+          - post-storage-memcached
 
   post-storage-mongodb:
     depends_on:
@@ -165,6 +201,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - post-storage-mongodb
 
   post-storage-service:
     depends_on:
@@ -181,6 +221,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - post-storage-service
 
   social-graph-mongodb:
     depends_on:
@@ -193,6 +237,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - social-graph-mongodb
 
   social-graph-redis:
     depends_on:
@@ -204,6 +252,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - social-graph-redis
 
   social-graph-service:
     depends_on:
@@ -220,6 +272,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - social-graph-service
 
   text-service:
     depends_on:
@@ -235,6 +291,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - text-service
 
   unique-id-service:
     depends_on:
@@ -250,6 +310,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - unique-id-service
 
   url-shorten-memcached:
     depends_on:
@@ -262,6 +326,10 @@ services:
       - "-t 8"
       - "-I 32m"
       - "-c 4096"
+    networks:
+      default:
+        aliases:
+          - url-shorten-memcached
 
   url-shorten-mongodb:
     depends_on:
@@ -274,6 +342,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - url-shorten-mongodb
 
   url-shorten-service:
     depends_on:
@@ -290,6 +362,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - url-shorten-service
 
   user-memcached:
     depends_on:
@@ -302,6 +378,10 @@ services:
       - "-t 8"
       - "-I 32m"
       - "-c 4096"
+    networks:
+      default:
+        aliases:
+          - user-memcached
 
   user-mention-service:
     depends_on:
@@ -317,6 +397,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - user-mention-service
 
   user-mongodb:
     depends_on:
@@ -329,6 +413,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - user-mongodb
 
   user-service:
     depends_on:
@@ -345,6 +433,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - user-service
 
   user-timeline-mongodb:
     depends_on:
@@ -357,6 +449,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - user-timeline-mongodb
 
   user-timeline-redis:
     depends_on:
@@ -368,6 +464,10 @@ services:
     volumes:
       - ./config:/social-network-microservices/config
       - ./keys:/keys
+    networks:
+      default:
+        aliases:
+          - user-timeline-redis
 
   user-timeline-service:
     depends_on:
@@ -382,6 +482,10 @@ services:
     image: deathstarbench/social-network-microservices:latest
     volumes:
       - ./config:/social-network-microservices/config
+    networks:
+      default:
+        aliases:
+          - user-timeline-service
 
   jaeger-collector:
     image: jaegertracing/jaeger-collector
@@ -400,6 +504,10 @@ services:
         condition: any
     depends_on:
       - cassandra-schema
+    networks:
+      default:
+        aliases:
+          - jaeger-collector
 
   jaeger-query:
     image: jaegertracing/jaeger-query
@@ -412,6 +520,10 @@ services:
         condition: any
     depends_on:
       - cassandra-schema
+    networks:
+      default:
+        aliases:
+          - jaeger-query
 
   cassandra-schema:
     image: jaegertracing/jaeger-cassandra-schema
@@ -420,10 +532,18 @@ services:
         condition: on-failure
     depends_on:
       - cassandra
+    networks:
+      default:
+        aliases:
+          - cassandra-schema
 
   cassandra:
     image: cassandra:3.9
     deploy:
+    networks:
+      default:
+        aliases:
+          - cassandra
 
 networks:
   default:

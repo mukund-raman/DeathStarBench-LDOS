@@ -23,6 +23,7 @@ Supported actions:
 * Python 3.5+ (with asyncio and aiohttp)
 * libssl-dev (apt-get install libssl-dev)
 * libz-dev (apt-get install libz-dev)
+* luajit (apt-get install luajit)
 * luarocks (apt-get install luarocks)
 * luasocket (luarocks install luasocket)
 
