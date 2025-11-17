@@ -8,7 +8,7 @@ set -euo pipefail # Exit early on errors
 # - Builds wrk2 load generator
 # - Verifies key tools are installed
 
-ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
+ROOT_DIR=$(cd $(pwd)/../../.. && pwd)
 SOCIAL_DIR="${ROOT_DIR}/socialNetwork"
 WRK2_DIR="${ROOT_DIR}/wrk2"
 

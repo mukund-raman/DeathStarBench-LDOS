@@ -42,7 +42,7 @@ VERBOSE=false              # set true to enable bash -x and verbose SSH
 SSH_TIMEOUT_SEC=600        # kill remote command after 10 min
 
 # Local output JSON file (written in this directory)
-OUTPUT_JSON="$(dirname "$0")/social-net-results.json"
+OUTPUT_JSON="$(dirname "$0")/social-net-swarm-results.json"
 
 # Retries/backoff for unhealthy runs
 MAX_RUN_RETRIES=4
