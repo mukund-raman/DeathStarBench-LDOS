@@ -52,10 +52,16 @@ RETRY_BACKOFF_SEC=5
 # Internal helpers
 # =========================
 
+# Log every bash command run for debugging purposes
 log() { echo "[social-net-experiment] $*" >&2; }
 
-need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "Missing command: $1" >&2; exit 1; }; }
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing command: $1" >&2; exit 1;
+  };
+}
 
+# Ensure that prereqs are met for installation
 ensure_local_prereqs() {
   need_cmd sshpass
   need_cmd ssh
@@ -76,6 +82,7 @@ _ssh_opts() {
     -o ServerAliveInterval=30 -o ServerAliveCountMax=120 ${extra}"
 }
 
+# Command to SSH into provided host
 ssh_cmd() {
   local host="$1"; shift
   log "SSH -> ${host}: $*"
@@ -91,6 +98,7 @@ ssh_stream() {
     ssh $(_ssh_opts) "${SSH_USER}@${host}" "$@" 2>&1 | sed -u "s/^/[${host}] /"
 }
 
+# Copy file from src to dest
 scp_to() {
   local src="$1" dst_host="$2" dst_path="$3"
   scp -i "${SSH_KEY}" -o IdentitiesOnly=yes -o BatchMode=yes \
@@ -98,6 +106,7 @@ scp_to() {
       -r "$src" "${SSH_USER}@${dst_host}:$dst_path"
 }
 
+# Copy file from src to dest using rysnc if possible
 rsync_to() {
   local src="$1" dst_host="$2" dst_path="$3"
   if command -v rsync >/dev/null 2>&1; then
@@ -460,6 +469,7 @@ build_placements_json() {
     local arr
     arr=$(awk -F'|' -v n="$host" '$1==n {print $2}' "$assign_tmp" | sort -u \
       | awk 'BEGIN{printf "["} {if(NR>1) printf ","; printf "\"%s\"", $0} END{printf "]"}')
+    
     # If no services found, produce an empty array
     if [[ -z "$arr" || "$arr" = "[]" ]]; then
       arr="[]"
