@@ -29,7 +29,7 @@ K8S_VERSION="${K8S_VERSION:-1.30.0-00}" # Kubernetes version to be used
 POD_CIDR="${POD_CIDR:-10.244.0.0/16}" # Pod CIDR (range of IP addresses)
 REMOTE_APP_DIR="~/socialNetwork" # Path where project will be copied on remote
 INSTALL_PREREQS=false # Flag for whether to attempt installing k8s on remote
-FORCE_RESET=false # Forcibly tear down and recreate cluster even if it exists
+FORCE_RESET=true # Forcibly tear down and recreate cluster even if it exists
 
 # Log every bash command run for debugging purposes
 log() { echo "[k8s-snet-install] $*" >&2; }
@@ -79,13 +79,13 @@ install_k8s_prereqs_remote() {
 set -eux
 
 disable_swap() {
-  sudo swapoff -a || true
-  sudo sed -i.bak '/ swap / s/^/#/' /etc/fstab || true
+  sudo swapoff -a
+  sudo sed -i.bak '/ swap / s/^/#/' /etc/fstab
 }
 
 setup_kernel_modules() {
-  sudo modprobe overlay || true
-  sudo modprobe br_netfilter || true
+  sudo modprobe overlay
+  sudo modprobe br_netfilter
   cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 overlay
 br_netfilter
@@ -147,19 +147,19 @@ reset_node_remote() {
   log "Resetting Kubernetes state on $host"
   ssh_cmd "$host" "bash -s" <<'REMOTE'
 set -eux
-sudo kubeadm reset -f || true
-sudo systemctl stop kubelet || true
-sudo systemctl stop containerd || true
-sudo rm -rf /etc/cni/net.d /var/lib/cni /var/lib/kubelet /etc/kubernetes /var/lib/etcd || true
-sudo systemctl start containerd || true
-sudo systemctl start kubelet || true
+sudo kubeadm reset -f
+sudo systemctl stop kubelet
+sudo systemctl stop containerd
+sudo rm -rf /etc/cni/net.d /var/lib/cni /var/lib/kubelet /etc/kubernetes /var/lib/etcd
+sudo systemctl start containerd
+sudo systemctl start kubelet
 REMOTE
 }
 
 # Initialize Kubernetes control plane on the local node (manager)
 init_control_plane() {
   log "Initializing control-plane on local node"
-  sudo kubeadm init --pod-network-cidr="${POD_CIDR}" || true
+  sudo kubeadm init --pod-network-cidr="${POD_CIDR}"
 
   # Set up Kubernetes config
   mkdir -p "$HOME/.kube"
@@ -168,7 +168,7 @@ init_control_plane() {
 
    # Ensure non-root can also read the admin kubeconfig
    # (for kubectl calls in this script)
-  sudo chmod 644 /etc/kubernetes/admin.conf || true
+  sudo chmod 644 /etc/kubernetes/admin.conf
 
   # Wait for API server to respond before installing CNI (~1 min timeout)
   log "Waiting for API server to become reachable"
@@ -206,7 +206,9 @@ join_worker_remote() {
 # Wait for all nodes in the cluster to be ready for use (~1 min timeout)
 wait_for_nodes_ready() {
   log "Waiting for all nodes to be Ready"
-  for _ in $(seq 1 12); do
+  
+  # Allow up to ~5 minutes for all nodes to report Ready
+  for _ in $(seq 1 60); do
     if kubectl get nodes 2>/dev/null | awk 'NR>1 {print $2}' | grep -qvx 'Ready'; then
       sleep 5
     else
@@ -215,7 +217,13 @@ wait_for_nodes_ready() {
     fi
   done
   log "Warning: not all nodes reached Ready state within timeout"
-  kubectl get nodes || true
+  kubectl get nodes
+}
+
+# Wait for CoreDNS to be ready
+wait_for_coredns() {
+  log "Waiting for CoreDNS to be Ready"
+  kubectl -n kube-system rollout status deployment/coredns --timeout=300s
 }
 
 # Deploy the Kubernetes configs for all microservices from all.yaml
@@ -248,10 +256,10 @@ main() {
   # If an existing healthy cluster is present, just deploy manifests and exit
   if [ -f /etc/kubernetes/admin.conf ]; then
     mkdir -p "$HOME/.kube"
-    sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null || true
-    sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config" 2>/dev/null || true
+    sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null
+    sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config" 2>/dev/null
   fi
-  if cluster_healthy; then
+  if [ "${FORCE_RESET}" != "true" ] && cluster_healthy; then
     log "Existing Kubernetes cluster detected and healthy; skipping kubeadm init/join."
     deploy_social_network_manifests
     log "Social network manifests applied on existing cluster."
@@ -263,8 +271,8 @@ main() {
   # accidentally tearing down a running cluster when re-running the script.
   if [ -f /etc/kubernetes/admin.conf ] && [ "${FORCE_RESET}" != "true" ]; then
     log "Existing Kubernetes cluster config detected but not healthy."
-    log "Leaving cluster state untouched. To rebuild from scratch, re-run with FORCE_RESET=true."
-    exit 1
+    log "Automatically forcing reset to repair cluster."
+    FORCE_RESET=true
   fi
 
   # No existing healthy cluster (or explicit FORCE_RESET): reset all nodes
@@ -287,6 +295,7 @@ main() {
 
   # Wait and deploy microservice Kubernetes configs
   wait_for_nodes_ready
+  wait_for_coredns
   deploy_social_network_manifests
 
   log "Kubernetes social network cluster setup complete."

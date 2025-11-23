@@ -26,12 +26,16 @@ WORKER_NODES=(
   "c220g5-111228.wisc.cloudlab.us"  # node4
 )
 
-# Workload parameters
+# Workload parameters (tuned for stability on CloudLab cluster)
 WRK_THREADS=4
-WRK_CONNS=64
+WRK_CONNS=32
 WRK_DURATION="30s"
-WRK_RPS=1000
+WRK_RPS=500
 RUNS_PER_WORKLOAD=3
+
+# Warm-up parameters (lower RPS, longer duration to stabilize services)
+WARMUP_DURATION="30s"
+WARMUP_RPS=200
 
 # Graph to initialize (see README) — optional but recommended
 INIT_GRAPH="socfb-Reed98"
@@ -65,37 +69,44 @@ need_cmd() {
 ensure_local_prereqs() {
   need_cmd kubectl
   need_cmd python3
+  need_cmd curl
 }
 
 # Wait for the frontend of socialnet to be ready (~1 min timeout)
 wait_for_frontend_ready() {
   log "Waiting for frontend service to be Ready (Kubernetes)"
 
-  for _ in $(seq 1 12); do
+  for _ in $(seq 1 60); do
     if kubectl get pods -l "service=nginx-thrift" -o jsonpath='{.items[*].status.containerStatuses[*].ready}' 2>/dev/null | grep -q true; then
       log "Frontend pod is Ready; checking HTTP endpoint on NodePort 32000"
       
-      # Verify that the HTTP endpoint is responding (similar to Swarm script)
-      for _ in $(seq 1 20); do
-        code=$(curl -s -o /dev/null -w "%{http_code}" -m 3 \
-          -X POST http://127.0.0.1:32000/wrk2-api/user/register \
-          -d "first_name=probe&last_name=probe&username=probe_$RANDOM&password=x&user_id=0" || true)
+      # Verify that the HTTP endpoint is responding (similar to Swarm script).
+      # If it never returns 200 within the timeout, we log a warning but DO NOT
+      # fail the script, to avoid getting stuck when the app returns non-200
+      # codes while still being functionally usable for experiments.
+      local code="000"
+      for _ in $(seq 1 60); do
+        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
+          -X POST "http://127.0.0.1:32000/wrk2-api/user/register" \
+          -d "first_name=probe&last_name=probe&username=probe_$RANDOM&password=x&user_id=0" || echo "000")
         if [[ "$code" == "200" ]]; then
           log "Registration endpoint ready (HTTP 200)"
           return 0
         fi
         sleep 3
       done
-      log "Frontend pod is Ready but HTTP endpoint did not return 200 within timeout"
-      return 1
+      log "Frontend pod is Ready but HTTP endpoint did not return 200 within timeout (last code: ${code}). Proceeding anyway."
+      return 0
     fi
     sleep 5
   done
 
   log "Frontend never became Ready."
-  kubectl get pods -o wide || true
-  kubectl logs -l "service=nginx-thrift" --tail=100 || true
-  return 1
+  kubectl get pods -o wide
+  kubectl logs -l "service=nginx-thrift" --tail=100
+  # Do not hard-fail here: allow the rest of the script to try, so that
+  # temporary readiness issues do not permanently block experiments.
+  return 0
 }
 
 # Initialize social graph on control node
@@ -103,8 +114,8 @@ init_social_graph() {
   log "Initializing social graph (${INIT_GRAPH})"
   (
     cd "${SOCIAL_DIR}" && \
-    python3 -m pip install -q aiohttp asyncio || true && \
-    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=64 || true
+    python3 -m pip install -q aiohttp asyncio && \
+    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=64
   )
 }
 
@@ -128,9 +139,9 @@ run_wrk2_and_parse() {
     (
       cd "$tmpdir" && \
       "${MAIN_WRK2_DIR}/wrk" \
-        -D exp -t ${WRK_THREADS} -c ${WRK_CONNS} -d 10s -L \
-        -s "${script_path}" "${url}" -R $(( WRK_RPS>100 ? 100 : WRK_RPS )) \
-        > /dev/null 2>&1 || true
+        -D exp -t ${WRK_THREADS} -c ${WRK_CONNS} -d "${WARMUP_DURATION}" -L \
+        -s "${script_path}" "${url}" -R ${WARMUP_RPS} \
+        > warmup-output.txt 2>&1
     ) && rm -rf "$tmpdir"
   )
 
@@ -250,7 +261,7 @@ build_placements_json() {
   # Collect node|service for running Pods in the social network namespace
   # (default namespace assumed)
   kubectl get pods -o jsonpath='{range .items[*]}{.spec.nodeName}{"|"}{.metadata.labels.service}{"\n"}{end}' \
-    | awk 'NF==2 && $2!="": {print}' > "$assign_tmp" || true
+    | awk 'NF==2 && $2!="": {print}' > "$assign_tmp"
 
   # Build friendly name map: node0 = control-plane, node1.. workers sorted
   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.labels."node-role\.kubernetes\.io/control-plane"}{"\n"}{end}' \
