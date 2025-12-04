@@ -24,6 +24,8 @@ DO_INSTALL_DEPS=false
 DO_RESET_K8S=false
 DO_CLUSTER=false
 DO_DEPLOY_APP=false
+DO_STOP_CLUSTER=false
+DO_START_CLUSTER=false
 
 # =========================
 # Helper Functions
@@ -160,6 +162,34 @@ EOF
     fi
 }
 
+# Stop Kubernetes services
+stop_cluster_node() {
+    local cmd="
+        sudo systemctl stop kubelet || true
+        sudo systemctl stop docker || true
+        sudo systemctl stop containerd || true
+    "
+    if [ "$1" == "localhost" ]; then
+        run_local "$cmd"
+    else
+        run_remote "$1" "$cmd"
+    fi
+}
+
+# Start Kubernetes services
+start_cluster_node() {
+    local cmd="
+        sudo systemctl start containerd || true
+        sudo systemctl start docker || true
+        sudo systemctl start kubelet || true
+    "
+    if [ "$1" == "localhost" ]; then
+        run_local "$cmd"
+    else
+        run_remote "$1" "$cmd"
+    fi
+}
+
 # =========================
 # Main Execution
 # =========================
@@ -172,6 +202,8 @@ usage() {
     echo "  --reset-k8s       Reset Kubernetes cluster state"
     echo "  --cluster         Initialize control plane and join workers"
     echo "  --deploy-app      Deploy the application"
+    echo "  --stop            Stop Kubernetes services (pause cluster)"
+    echo "  --start           Start Kubernetes services (resume cluster)"
     echo "  --all             Run all steps (Cleanup -> Install -> Reset -> Setup -> Deploy)"
     echo "  --setup           Setup the cluster (Reset -> Setup -> Deploy)"
     exit 1
@@ -188,6 +220,8 @@ while [[ $# -gt 0 ]]; do
         --reset-k8s)    DO_RESET_K8S=true; shift ;;
         --cluster)      DO_CLUSTER=true; shift ;;
         --deploy-app)   DO_DEPLOY_APP=true; shift ;;
+        --stop)         DO_STOP_CLUSTER=true; shift ;;
+        --start)        DO_START_CLUSTER=true; shift ;;
         --all)
             DO_CLEANUP_DEPS=true
             DO_INSTALL_DEPS=true
@@ -297,4 +331,26 @@ if [ "$DO_DEPLOY_APP" = true ]; then
     log "Cluster setup complete!"
     kubectl get nodes
     kubectl get pods -o wide
+fi
+
+# 6. Stop Cluster
+if [ "$DO_STOP_CLUSTER" = true ]; then
+    log "Stopping Kubernetes services on all nodes..."
+    stop_cluster_node "localhost"
+    for node in "${WORKER_NODES[@]}"; do
+        stop_cluster_node "$node"
+    done
+    log "Cluster services stopped."
+fi
+
+# 7. Start Cluster
+if [ "$DO_START_CLUSTER" = true ]; then
+    log "Starting Kubernetes services on all nodes..."
+    start_cluster_node "localhost"
+    for node in "${WORKER_NODES[@]}"; do
+        start_cluster_node "$node"
+    done
+    log "Cluster services started. Waiting for nodes to be ready..."
+    kubectl wait --for=condition=ready node --all --timeout=300s || true
+    log "Nodes are ready."
 fi
