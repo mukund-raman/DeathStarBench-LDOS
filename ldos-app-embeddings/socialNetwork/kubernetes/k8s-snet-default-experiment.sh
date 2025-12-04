@@ -2,8 +2,6 @@
 
 set -euo pipefail # Exit early on errors
 
-# Kubernetes-based social network benchmark
-
 # =========================
 # Editable constants
 # =========================
@@ -37,16 +35,10 @@ RUNS_PER_WORKLOAD=3
 WARMUP_DURATION="30s"
 WARMUP_RPS=200
 
-# Graph to initialize (see README) — optional but recommended
-INIT_GRAPH="socfb-Reed98"
-
-# If true, remove existing run directories at startup
-CLEAN_RUN_DIRS_ON_START=true
-
+INIT_GRAPH="socfb-Reed98" # Graph to initialize
+CLEAN_RUN_DIRS_ON_START=true # set true to remove existing run directories
 VERBOSE=false # set true to enable bash -x and verbose SSH
-
-# Local output JSON file (written in this directory)
-OUTPUT_JSON="$(dirname "$0")/k8s-default-snet-results.json"
+OUTPUT_JSON="$(dirname "$0")/k8s-default-snet-results.json" # output JSON
 
 # Retries/backoff for unhealthy runs
 MAX_RUN_RETRIES=2
@@ -84,9 +76,6 @@ wait_for_frontend_ready() {
       log "Frontend pod is Ready; checking HTTP endpoint on NodePort 32000"
       
       # Verify that the HTTP endpoint is responding (similar to Swarm script).
-      # If it never returns 200 within the timeout, we log a warning but DO NOT
-      # fail the script, to avoid getting stuck when the app returns non-200
-      # codes while still being functionally usable for experiments.
       local code="000"
       for _ in $(seq 1 60); do
         code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
@@ -294,18 +283,34 @@ build_placements_json() {
     '
 }
 
-# Write combined results JSON to file (placements first)
-write_results_json() {
-  local placements_json="$1" compose_json="$2" home_json="$3" user_json="$4" mixed_json="$5"
+# Write node placements to file
+write_placements_json() {
+  local placements_json="$1"
   cat > "$OUTPUT_JSON" <<-EOF
     {
-      "placements": ${placements_json},
-      "compose-post": ${compose_json},
-      "read-home-timelines": ${home_json},
-      "read-user-timelines": ${user_json},
-      "mixed-workload": ${mixed_json}
+      "placements": ${placements_json}
     }
 EOF
+  log "Wrote placements to $OUTPUT_JSON"
+}
+
+# Write combined results to file, appending to existing JSON
+write_results_json() {
+  local compose_json="$1" home_json="$2" user_json="$3" mixed_json="$4"
+  jq -n \
+    --argfile current "${OUTPUT_JSON:-/dev/null}" \
+    --argjson compose "$compose_json" \
+    --argjson home "$home_json" \
+    --argjson user "$user_json" \
+    --argjson mixed "$mixed_json" \
+    '
+      ($current // {}) + {
+        "compose-post": $compose,
+        "read-home-timelines": $home,
+        "read-user-timelines": $user,
+        "mixed-workload": $mixed
+      }
+    ' > "$OUTPUT_JSON"
   log "Wrote results to $OUTPUT_JSON"
 }
 
@@ -327,11 +332,16 @@ main() {
   fi
   mkdir -p "$RUNS_ROOT"
 
-  # Start the SSH agent
-    eval "$(ssh-agent -s)"
-    ssh-add "$SSH_KEY"
+  # Build placements JSON and write to file
+  local placements_json
+  placements_json=$(build_placements_json)
+  write_placements_json "$placements_json"
 
-  # Wait for services to be ready, init social graph, and build wrk2 scripts
+  # Start the SSH agent
+  eval "$(ssh-agent -s)"
+  ssh-add "$SSH_KEY"
+
+  # Wait for services to be ready, init social graph, build wrk2 scripts
   wait_for_frontend_ready
   init_social_graph
   build_wrk2
@@ -355,11 +365,8 @@ main() {
                "${SCRIPT_BASE}/mixed-workload.lua" "mixed-workload")
 
   # Save combined JSON locally with placements first
-  local placements_json
-  placements_json=$(build_placements_json)
-  write_results_json "$placements_json" "$compose_json" "$home_json" "$user_json" "$mixed_json"
+  write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
   python3 -m json.tool "${OUTPUT_JSON}" > "${OUTPUT_JSON}.tmp" && mv "${OUTPUT_JSON}.tmp" "${OUTPUT_JSON}"
-
   log "Done. Inspect Kubernetes resources with: kubectl get pods,svc"
 }
 

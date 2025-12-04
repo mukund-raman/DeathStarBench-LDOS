@@ -276,6 +276,10 @@ if [ "$DO_CLUSTER" = true ]; then
     log "Initializing Control Plane..."
     run_local "sudo kubeadm init --pod-network-cidr=10.244.0.0/16"
 
+    # Untaint control plane to allow scheduling pods on it
+    log "Untainting control plane to allow scheduling..."
+    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true"
+
     # Setup kubeconfig
     mkdir -p $HOME/.kube
     sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
