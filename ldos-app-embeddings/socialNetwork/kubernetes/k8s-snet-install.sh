@@ -31,6 +31,7 @@ DO_START_CLUSTER=false
 # Helper Functions
 # =========================
 
+# Logging function
 log() { echo "[k8s-install] $*" >&2; }
 
 # SSH options for non-interactive execution
@@ -290,7 +291,6 @@ if [ "$DO_CLUSTER" = true ]; then
         echo "Waiting for API server... ($i/60)"
         sleep 2
     done
-    
     log "Applying Flannel CNI with retry..."
     for i in {1..5}; do
         if kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml; then
@@ -307,11 +307,16 @@ if [ "$DO_CLUSTER" = true ]; then
         run_remote "$node" "sudo $JOIN_CMD"
     done
 
-    # Ensure worker node services are restarted to fix potential NotReady state
+    # Restart worker node services to fix potential NotReady state
     log "Restarting containerd and kubelet on worker nodes to ensure readiness..."
     for node in "${WORKER_NODES[@]}"; do
         run_remote "$node" "sudo systemctl restart containerd && sudo systemctl restart kubelet"
     done
+
+    # Wait for nodes to be ready
+    log "Waiting for nodes to be ready..."
+    kubectl wait --for=condition=ready node --all --timeout=300s
+    log "Nodes are ready."
 fi
 
 # 5. Deploy Application
@@ -326,8 +331,7 @@ if [ "$DO_DEPLOY_APP" = true ]; then
     fi
 
     log "Waiting for pods to be ready..."
-    kubectl wait --for=condition=ready pod --all --timeout=300s || true
-    
+    kubectl wait --for=condition=ready pod --all --timeout=300s
     log "Cluster setup complete!"
     kubectl get nodes
     kubectl get pods -o wide
@@ -351,6 +355,6 @@ if [ "$DO_START_CLUSTER" = true ]; then
         start_cluster_node "$node"
     done
     log "Cluster services started. Waiting for nodes to be ready..."
-    kubectl wait --for=condition=ready node --all --timeout=300s || true
+    kubectl wait --for=condition=ready node --all --timeout=300s
     log "Nodes are ready."
 fi

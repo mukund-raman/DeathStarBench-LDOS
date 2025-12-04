@@ -265,46 +265,33 @@ JSON
 
 # Build placements JSON: map node hostname -> [service, ...]
 build_placements_json() {
-  local assign_tmp map_tmp
-  assign_tmp=$(mktemp)
-  map_tmp=$(mktemp)
+  kubectl get pods -o json \
+  | jq '
+      # Extract {nodeIdx, podNamePrefix} and group by node index
+      .items
+      | map({
+          nodeIdx: (.spec.nodeName | capture("node(?<n>[0-9]+)") | .n | tonumber),
+          pod: (.metadata.name | sub("-[a-z0-9]+-[a-z0-9]+$"; ""))
+        })
+      | group_by(.nodeIdx)
 
-  # Collect node|service for running Pods in the social network namespace
-  kubectl get pods -o jsonpath='{range .items[*]}{.spec.nodeName}{"|"}{.metadata.labels.service}{"\n"}{end}' \
-    | awk 'NF==2 && $2!="" {print}' > "$assign_tmp"
+      # Convert into {"nodeX": [pods...]}
+      | map({
+          ("node" + (.[0].nodeIdx|tostring)):
+            (map(.pod) | sort | unique)
+        })
+      | add
 
-  # Build friendly name map: node0 = control-plane, node1.. workers sorted
-  kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.labels."node-role\.kubernetes\.io/control-plane"}{"\n"}{end}' \
-    | awk '$2!="" {print $1}' | head -n1 | awk '{print $1"|node0"}' > "$map_tmp"
-  kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.labels."node-role\.kubernetes\.io/control-plane"}{"\n"}{end}' \
-    | awk '$2=="" {print $1}' | sort \
-    | nl -v 1 -w 1 -s ' ' \
-    | awk '{printf "%s|node%d\n", $2, $1}' >> "$map_tmp"
-
-  # Build JSON grouped by friendly node name, include empty arrays for
-  # nodes with no tasks
-  local json first=true
-  json="{"
-  while IFS='|' read -r host friendly; do
-    # Services for this host
-    local arr
-    arr=$(awk -F'|' -v n="$host" '$1==n {print $2}' "$assign_tmp" | sort -u \
-      | awk 'BEGIN{printf "["} {if(NR>1) printf ","; printf "\"%s\"", $0} END{printf "]"}')
-    if [[ -z "$arr" || "$arr" = "[]" ]]; then
-      arr="[]"
-    fi
-    
-    # If no services found, produce an empty array
-    if [ "$first" = true ]; then
-      json+=$(printf '"%s": %s' "$friendly" "$arr")
-      first=false
-    else
-      json+=$(printf ', "%s": %s' "$friendly" "$arr")
-    fi
-  done < "$map_tmp"
-  json+="}"
-  rm -f "$assign_tmp" "$map_tmp"
-  printf '%s' "$json"
+      # Ensure node0..node4 always exist
+      | . as $podsByNode
+      | reduce range(0;5) as $i (
+          {};
+          . + {
+            ("node" + ($i|tostring)):
+              ($podsByNode["node\($i)"] // [])
+          }
+        )
+    '
 }
 
 # Write combined results JSON to file (placements first)
