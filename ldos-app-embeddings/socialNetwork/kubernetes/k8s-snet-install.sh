@@ -1,22 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-set -euo pipefail # Exit early on errors
+set -euo pipefail
 
-# This script prepares a 5-node Kubernetes cluster for the social network
-# benchmark.
-# - Current machine is the control-plane node.
-# - The 4 worker nodes are the same as in Docker Swarm experiment script.
+# =========================
+# Configuration
+# =========================
 
-# SSH key and user for worker nodes
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
-SSH_USER="mkraman"
-
-# Path variables
-ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-SOCIAL_DIR="${ROOT_DIR}/socialNetwork"
-WRK2_DIR="${ROOT_DIR}/wrk2"
-
-# Remote worker nodes (control node is the current local machine)
+# Remote worker nodes
 WORKER_NODES=(
   "c220g5-111219.wisc.cloudlab.us"  # node1
   "c220g5-111226.wisc.cloudlab.us"  # node2
@@ -24,329 +14,287 @@ WORKER_NODES=(
   "c220g5-111228.wisc.cloudlab.us"  # node4
 )
 
-# Constants
-K8S_VERSION="${K8S_VERSION:-1.30.0-00}" # Kubernetes version to be used
-POD_CIDR="${POD_CIDR:-10.244.0.0/16}" # Pod CIDR (range of IP addresses)
-REMOTE_APP_DIR="~/socialNetwork" # Path where project will be copied on remote
-INSTALL_PREREQS=false # Flag for whether to attempt installing k8s on remote
+SSH_USER="mkraman"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+SSH_TIMEOUT=600
 
-# Log every bash command run for debugging purposes
-log() { echo "[k8s-snet-install] $*" >&2; }
+# Flags
+DO_CLEANUP_DEPS=false
+DO_INSTALL_DEPS=false
+DO_RESET_K8S=false
+DO_CLUSTER=false
+DO_DEPLOY_APP=false
 
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || {
-    echo "Missing command: $1" >&2; exit 1;
-  };
-}
+# =========================
+# Helper Functions
+# =========================
 
-# Ensure that prereqs are met for installation
-ensure_local_prereqs() {
-  need_cmd ssh
-  need_cmd scp
-}
+log() { echo "[k8s-install] $*" >&2; }
 
-# No TTY, force publickey, non-interactive (fail instead of hanging)
+# SSH options for non-interactive execution
 _ssh_opts() {
-  printf '%s' "-T -i ${SSH_KEY} -o IdentitiesOnly=yes -o BatchMode=yes \
-    -o PreferredAuthentications=publickey \
-    -o PubkeyAuthentication=yes -o PasswordAuthentication=no \
-    -o KbdInteractiveAuthentication=no \
-    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
+    echo "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10"
 }
 
-# Command to SSH into provided host
-ssh_cmd() {
-  local host="$1"; shift
-  log "SSH -> ${host}: $*"
-  ssh $(_ssh_opts) "${SSH_USER}@${host}" "$@"
+# Run command on a remote host
+run_remote() {
+    local host="$1"
+    local cmd="$2"
+    log "Running on $host: $cmd"
+    ssh $(_ssh_opts) "$SSH_USER@$host" "$cmd"
 }
 
-# Copy file from src to dest
-scp_to() {
-  local src="$1" dst_host="$2" dst_path="$3"
-  scp -i "${SSH_KEY}" -o IdentitiesOnly=yes -o BatchMode=yes \
-      -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      -r "$src" "${SSH_USER}@${dst_host}:$dst_path"
+# Run command locally
+run_local() {
+    local cmd="$1"
+    log "Running locally: $cmd"
+    eval "$cmd"
 }
 
-# Install kubernetes prereqs on remote host
-install_k8s_prereqs_remote() {
-  local host="$1"
-  log "Installing container runtime and Kubernetes binaries on $host"
-  ssh_cmd "$host" "bash -s" <<'REMOTE'
-set -eux
-
-disable_swap() {
-  sudo swapoff -a
-  sudo sed -i.bak '/ swap / s/^/#/' /etc/fstab
+# Setup SSH Agent
+setup_ssh_agent() {
+    log "Setting up SSH agent..."
+        eval "$(ssh-agent -s)"
+    ssh-add "$SSH_KEY"
 }
 
-setup_kernel_modules() {
-  sudo modprobe overlay
-  sudo modprobe br_netfilter
-  cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
-overlay
-br_netfilter
-EOF
-  cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables  = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward                 = 1
-EOF
-  sudo sysctl --system
-}
-
-install_containerd() {
-  sudo apt-get update -y
-  sudo apt-get install -y containerd
-  sudo mkdir -p /etc/containerd
-  containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
-  sudo systemctl restart containerd
-  sudo systemctl enable containerd
-}
-
-install_kube_tools() {
-  sudo apt-get update -y
-  sudo apt-get install -y apt-transport-https ca-certificates curl
-  sudo mkdir -p /etc/apt/keyrings
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
-    | sudo gpg --dearmor --batch --yes --no-tty -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-  sudo apt-get update -y
-  sudo apt-get install -y kubelet kubeadm kubectl
-  sudo apt-mark hold kubelet kubeadm kubectl
-}
-
-disable_swap
-setup_kernel_modules
-install_containerd
-install_kube_tools
-REMOTE
-}
-
-# Check if an existing cluster is healthy (API reachable, at least one ready node)
-cluster_healthy() {
-  if ! command -v kubectl >/dev/null 2>&1; then
-    return 1
-  fi
-  if ! kubectl version --request-timeout='5s' >/dev/null 2>&1; then
-    return 1
-  fi
-  if kubectl get nodes >/dev/null 2>&1 && \
-     kubectl get nodes | awk 'NR>1 && $2=="Ready" {found=1} END {exit !found}'; then
-    return 0
-  fi
-  return 1
-}
-
-# Reset Kubernetes state on a node so kubeadm init/join can be re-run cleanly
-reset_node_remote() {
-  local host="$1"
-  log "Resetting Kubernetes state on $host"
-  ssh_cmd "$host" "bash -s" <<'REMOTE'
-set -eux
-sudo kubeadm reset -f
-sudo systemctl stop kubelet
-sudo systemctl stop containerd
-sudo rm -rf /etc/cni/net.d /var/lib/cni /var/lib/kubelet /etc/kubernetes /var/lib/etcd
-sudo systemctl start containerd
-sudo systemctl start kubelet
-REMOTE
-}
-
-# Initialize Kubernetes control plane on the local node (manager)
-init_control_plane() {
-  log "Initializing control-plane on local node"
-  sudo kubeadm init --pod-network-cidr="${POD_CIDR}"
-
-  # Set up Kubernetes config
-  mkdir -p "$HOME/.kube"
-  sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
-  sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
-
-   # Ensure non-root can also read the admin kubeconfig
-   # (for kubectl calls in this script)
-  sudo chmod 644 /etc/kubernetes/admin.conf
-
-  # Wait for API server to respond before installing CNI (~1 min timeout)
-  log "Waiting for API server to become reachable"
-  # Allow up to ~5 minutes for the control-plane components to stabilize
-  for _ in $(seq 1 30); do
-    if KUBECONFIG="$HOME/.kube/config" kubectl version --request-timeout='5s' >/dev/null 2>&1; then
-      break
-    fi
-    sleep 5
-  done
-
-  # Install flannel CNI for pod networking (with retry)
-  log "Applying Flannel CNI manifest"
-  for _ in $(seq 1 10); do
-    if KUBECONFIG="$HOME/.kube/config" kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml --validate=false; then
-      break
-    fi
-    log "Flannel apply failed, retrying in 5s..."
-    sleep 5
-  done
-}
-
-# Join command for worker nodes
-get_join_command() {
-  kubeadm token create --print-join-command 2>/dev/null || kubeadm token create --print-join-command
-}
-
-# Joins the given remote host to the Kubernetes cluster
-join_worker_remote() {
-  local host="$1" join_cmd="$2"
-  log "Joining worker $host to cluster"
-  ssh_cmd "$host" "sudo $join_cmd"
-}
-
-# Wait for all nodes in the cluster to be ready for use (~1 min timeout)
-wait_for_nodes_ready() {
-  log "Waiting for all nodes to be Ready"
-  
-  # Allow up to ~5 minutes for all nodes to report Ready
-  for _ in $(seq 1 60); do
-    if kubectl get nodes 2>/dev/null | awk 'NR>1 {print $2}' | grep -qvx 'Ready'; then
-      sleep 5
+# Cleanup dependencies (Docker, K8s binaries)
+cleanup_deps_node() {
+    local cmd="
+        sudo systemctl stop kubelet || true
+        sudo systemctl stop docker.socket || true
+        sudo systemctl stop docker || true
+        sudo apt-mark unhold kubelet kubeadm kubectl || true
+        sudo apt-get purge -y docker-ce docker-ce-cli containerd.io kubelet kubeadm kubectl || true
+        sudo apt-get autoremove -y || true
+        sudo rm -rf /etc/docker /var/lib/docker /var/lib/containerd || true
+    "
+    if [ "$1" == "localhost" ]; then
+        run_local "$cmd"
     else
-      kubectl get nodes
-      return 0
+        run_remote "$1" "$cmd"
     fi
-  done
-  log "Warning: not all nodes reached Ready state within timeout"
-  kubectl get nodes
 }
 
-# Wait for all pods to be ready (Running or Succeeded)
-# This is a best-effort check and will not fail the script if pods aren't ready
-wait_for_pods_ready() {
-  log "Waiting for all pods to be Ready (best-effort check)..."
-  
-  # First, wait for API server to be stable after deployment
-  log "Giving API server time to stabilize after mass pod deployment..."
-  log "This may take 30-60 seconds..."
-  sleep 30
-  
-  # Wait for API server to become responsive with retries
-  local api_ready=false
-  for attempt in $(seq 1 30); do
-    if kubectl get pods --all-namespaces >/dev/null 2>&1; then
-      api_ready=true
-      break
+# Reset Kubernetes state
+reset_k8s_node() {
+    local cmd="
+        sudo kubeadm reset -f || true
+        sudo systemctl stop kubelet || true
+        sudo systemctl stop docker || true
+        sudo rm -rf /etc/cni/net.d || true
+        sudo rm -rf /var/lib/etcd || true
+        sudo rm -rf /var/lib/kubelet || true
+        sudo rm -rf /var/lib/dockershim || true
+        sudo rm -rf /var/run/kubernetes || true
+        sudo rm -rf \$HOME/.kube || true
+        
+        # Network cleanup
+        sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X || true
+        sudo ip link delete cni0 || true
+        sudo ip link delete flannel.1 || true
+        sudo rm -rf /run/flannel || true
+    "
+    if [ "$1" == "localhost" ]; then
+        run_local "$cmd"
+    else
+        run_remote "$1" "$cmd"
     fi
-    log "API server not responsive yet (attempt $attempt/30), waiting..."
-    sleep 5
-  done
-  
-  if [[ "$api_ready" != "true" ]]; then
-    log "Warning: API server did not become responsive within timeout"
-    log "Pods may still be starting - check with 'kubectl get pods --all-namespaces' later"
-    return 0  # Don't fail the script
-  fi
-  
-  log "API server is responsive, checking pod status..."
-  
-  # Now wait for pods to reach Running/Succeeded state
-  for _ in $(seq 1 60); do
-    # Get all pods across all namespaces, excluding header
-    # Check if any pod is not in Running or Succeeded state
-    if ! kubectl get pods --all-namespaces 2>/dev/null >/dev/null; then
-      log "API server temporarily unavailable, retrying..."
-      sleep 5
-      continue
+}
+
+# Install dependencies
+install_dependencies_node() {
+    local cmd="
+        sudo apt-get update
+        sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg2
+
+        # Install Docker
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
+        echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y --allow-downgrades docker-ce docker-ce-cli containerd.io=1.7.29-1~ubuntu.24.04~noble
+
+        # Configure containerd
+        sudo mkdir -p /etc/containerd
+        sudo rm -f /etc/containerd/config.toml
+        containerd config default | sudo tee /etc/containerd/config.toml
+        sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+        sudo systemctl restart containerd
+
+        # Configure Docker daemon
+        sudo mkdir -p /etc/docker
+        cat <<EOF | sudo tee /etc/docker/daemon.json
+{
+  \"exec-opts\": [\"native.cgroupdriver=systemd\"],
+  \"log-driver\": \"json-file\",
+  \"log-opts\": {
+    \"max-size\": \"100m\"
+  },
+  \"storage-driver\": \"overlay2\"
+}
+EOF
+        # Fix for Docker socket activation issues
+        sudo systemctl stop docker.socket docker.service || true
+        sudo systemctl reset-failed docker.socket docker.service || true
+        sudo systemctl daemon-reload
+        sudo systemctl enable docker
+        sudo systemctl start docker.socket
+        sudo systemctl start docker.service
+
+        # Install K8s components
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+        sudo apt-get update
+        sudo apt-get install -y kubelet kubeadm kubectl
+        sudo apt-mark hold kubelet kubeadm kubectl
+        
+        # Disable swap
+        sudo swapoff -a
+        sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    "
+    if [ "$1" == "localhost" ]; then
+        run_local "$cmd"
+    else
+        run_remote "$1" "$cmd"
     fi
+}
+
+# =========================
+# Main Execution
+# =========================
+
+usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  --cleanup-deps    Remove Docker and K8s binaries"
+    echo "  --install-deps    Install Docker and K8s binaries"
+    echo "  --reset-k8s       Reset Kubernetes cluster state"
+    echo "  --cluster         Initialize control plane and join workers"
+    echo "  --deploy-app      Deploy the application"
+    echo "  --all             Run all steps (Cleanup -> Install -> Reset -> Setup -> Deploy)"
+    echo "  --setup           Setup the cluster (Reset -> Setup -> Deploy)"
+    exit 1
+}
+
+# Parse arguments
+if [ $# -eq 0 ]; then
+    usage
+fi
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --cleanup-deps) DO_CLEANUP_DEPS=true; shift ;;
+        --install-deps) DO_INSTALL_DEPS=true; shift ;;
+        --reset-k8s)    DO_RESET_K8S=true; shift ;;
+        --cluster)      DO_CLUSTER=true; shift ;;
+        --deploy-app)   DO_DEPLOY_APP=true; shift ;;
+        --all)
+            DO_CLEANUP_DEPS=true
+            DO_INSTALL_DEPS=true
+            DO_RESET_K8S=true
+            DO_CLUSTER=true
+            DO_DEPLOY_APP=true
+            shift
+            ;;
+        --setup)
+            DO_RESET_K8S=true
+            DO_CLUSTER=true
+            DO_DEPLOY_APP=true
+            shift
+            ;;
+        *) usage ;;
+    esac
+done
+
+# 0. Setup SSH Agent
+setup_ssh_agent
+
+# 1. Cleanup Dependencies
+if [ "$DO_CLEANUP_DEPS" = true ]; then
+    log "Cleaning up dependencies on all nodes..."
+    cleanup_deps_node "localhost"
+    for node in "${WORKER_NODES[@]}"; do
+        cleanup_deps_node "$node"
+    done
+fi
+
+# 2. Install Dependencies
+if [ "$DO_INSTALL_DEPS" = true ]; then
+    log "Installing dependencies on all nodes..."
+    install_dependencies_node "localhost"
+    for node in "${WORKER_NODES[@]}"; do
+        install_dependencies_node "$node"
+    done
+fi
+
+# 3. Reset Kubernetes State
+if [ "$DO_RESET_K8S" = true ]; then
+    log "Resetting Kubernetes state on all nodes..."
+    reset_k8s_node "localhost"
+    for node in "${WORKER_NODES[@]}"; do
+        reset_k8s_node "$node"
+    done
+fi
+
+# 4. Setup Cluster
+if [ "$DO_CLUSTER" = true ]; then
+    log "Initializing Control Plane..."
+    run_local "sudo kubeadm init --pod-network-cidr=10.244.0.0/16"
+
+    # Setup kubeconfig
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+    # Install Flannel
+    log "Installing Flannel CNI..."
+    log "Waiting for API server to be ready..."
+    for i in {1..60}; do
+        if kubectl get nodes &> /dev/null; then
+            break
+        fi
+        echo "Waiting for API server... ($i/60)"
+        sleep 2
+    done
     
-    if kubectl get pods --all-namespaces 2>/dev/null | awk 'NR>1 {print $4}' | grep -qvE '^(Running|Succeeded)$'; then
-      sleep 5
-    else
-      kubectl get pods --all-namespaces
-      return 0
-    fi
-  done
-  log "Warning: not all pods reached Running/Succeeded state within timeout"
-  kubectl get pods --all-namespaces 2>/dev/null || log "Could not retrieve pod status"
-}
-
-# Wait for CoreDNS to be ready
-wait_for_coredns() {
-  log "Waiting for CoreDNS to be Ready"
-  kubectl -n kube-system rollout status deployment/coredns --timeout=300s
-}
-
-# Deploy the Kubernetes configs for all microservices from all.yaml
-deploy_social_network_manifests() {
-  log "Deploying social network Kubernetes manifests"
-  local ROOT
-  ROOT=$(cd $(pwd)/../../.. && pwd)
-  kubectl apply -f "${ROOT}/socialNetwork/kubernetes/all.yaml"
-}
-
-# Run necessary steps for installation and setup of k8s cluster
-main() {
-  ensure_local_prereqs
-
-  # Start the SSH agent
-  # eval "$(ssh-agent -s)"
-  # ssh-add "$SSH_KEY"
-
-  # Only install Kubernetes prereqs if flag set to true
-  if [ "${INSTALL_PREREQS}" = "true" ]; then
-    # Prepare remote worker nodes
-    for n in "${WORKER_NODES[@]}"; do
-      install_k8s_prereqs_remote "$n"
+    log "Applying Flannel CNI with retry..."
+    for i in {1..5}; do
+        if kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml; then
+            break
+        fi
+        log "Retry applying Flannel ($i/5)..."
+        sleep 5
     done
 
-    # Prepare local control-plane node
-    install_k8s_prereqs_remote "127.0.0.1"
-  fi
+    # Join Workers
+    log "Joining Worker Nodes..."
+    JOIN_CMD=$(kubeadm token create --print-join-command)
+    for node in "${WORKER_NODES[@]}"; do
+        run_remote "$node" "sudo $JOIN_CMD"
+    done
 
-  # If an existing healthy cluster is present, just deploy manifests and exit
-  if [ -f /etc/kubernetes/admin.conf ]; then
-    mkdir -p "$HOME/.kube"
-    sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null
-    sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config" 2>/dev/null
-  fi
-  if cluster_healthy; then
-    log "Existing Kubernetes cluster detected and healthy; skipping kubeadm init/join."
-    deploy_social_network_manifests
-    log "Social network manifests applied on existing cluster."
-    exit 0
-  fi
+    # Ensure worker node services are restarted to fix potential NotReady state
+    log "Restarting containerd and kubelet on worker nodes to ensure readiness..."
+    for node in "${WORKER_NODES[@]}"; do
+        run_remote "$node" "sudo systemctl restart containerd && sudo systemctl restart kubelet"
+    done
+fi
 
-  # No existing healthy cluster: reset all nodes and perform fresh init/join.
-  log "No healthy cluster detected; resetting all nodes and performing fresh initialization."
-  reset_node_remote "127.0.0.1"
-  for n in "${WORKER_NODES[@]}"; do
-    reset_node_remote "$n"
-  done
+# 5. Deploy Application
+if [ "$DO_DEPLOY_APP" = true ]; then
+    log "Deploying Social Network Application..."
+    APP_YAML="/users/mkraman/DeathStarBench-LDOS/socialNetwork/kubernetes/all.yaml"
+    if [ -f "$APP_YAML" ]; then
+        kubectl apply -f "$APP_YAML"
+    else
+        log "Error: Application YAML not found at $APP_YAML"
+        exit 1
+    fi
 
-  # Initialize cluster on control-plane
-  init_control_plane
-
-  # Join workers
-  local join_cmd
-  join_cmd="$(get_join_command)"
-  for w in "${WORKER_NODES[@]}"; do
-    join_worker_remote "$w" "$join_cmd"
-  done
-
-  # Wait and deploy microservice Kubernetes configs
-  wait_for_nodes_ready
-  wait_for_coredns
-  deploy_social_network_manifests
-  
-  # Wait for pods with best-effort (non-fatal)
-  log "Checking pod readiness (this may take several minutes)..."
-  if wait_for_pods_ready; then
-    log "All pods are ready!"
-  else
-    log "Some pods may still be starting. Check status with: kubectl get pods --all-namespaces"
-  fi
-
-  log "Kubernetes social network cluster setup complete."
-  log "Run 'kubectl get pods --all-namespaces' to check pod status"
-}
-
-main "$@"
+    log "Waiting for pods to be ready..."
+    kubectl wait --for=condition=ready pod --all --timeout=300s || true
+    
+    log "Cluster setup complete!"
+    kubectl get nodes
+    kubectl get pods -o wide
+fi

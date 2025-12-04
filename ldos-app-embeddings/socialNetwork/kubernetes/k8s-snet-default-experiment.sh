@@ -115,10 +115,18 @@ wait_for_frontend_ready() {
 # Initialize social graph on control node
 init_social_graph() {
   log "Initializing social graph (${INIT_GRAPH})"
+  
+  # Activate venv if it exists
+  if [ -f "${ROOT_DIR}/../.venv/bin/activate" ]; then
+      source "${ROOT_DIR}/../.venv/bin/activate"
+  elif [ -f "${ROOT_DIR}/.venv/bin/activate" ]; then
+      source "${ROOT_DIR}/.venv/bin/activate"
+  fi
+
   (
     cd "${SOCIAL_DIR}" && \
     python3 -m pip install -q aiohttp asyncio && \
-    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=64
+    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=64 --ip="${NODE_IP}" --port=32000
   )
 }
 
@@ -262,9 +270,8 @@ build_placements_json() {
   map_tmp=$(mktemp)
 
   # Collect node|service for running Pods in the social network namespace
-  # (default namespace assumed)
   kubectl get pods -o jsonpath='{range .items[*]}{.spec.nodeName}{"|"}{.metadata.labels.service}{"\n"}{end}' \
-    | awk 'NF==2 && $2!="": {print}' > "$assign_tmp"
+    | awk 'NF==2 && $2!="" {print}' > "$assign_tmp"
 
   # Build friendly name map: node0 = control-plane, node1.. workers sorted
   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.labels."node-role\.kubernetes\.io/control-plane"}{"\n"}{end}' \
@@ -334,8 +341,8 @@ main() {
   mkdir -p "$RUNS_ROOT"
 
   # Start the SSH agent
-  # eval "$(ssh-agent -s)"
-  # ssh-add "$SSH_KEY"
+    eval "$(ssh-agent -s)"
+    ssh-add "$SSH_KEY"
 
   # Wait for services to be ready, init social graph, and build wrk2 scripts
   wait_for_frontend_ready
