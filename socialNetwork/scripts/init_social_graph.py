@@ -83,6 +83,7 @@ async def register(addr, nodes, limit=200):
       tasks.append(task)
       if i % limit == 0:
         _ = await asyncio.gather(*tasks)
+        tasks = []
         print(i)
     results = await asyncio.gather(*tasks)
     printResults(results)
@@ -104,6 +105,7 @@ async def follow(addr, edges, limit=200):
       idx += 1
       if idx % limit == 0:
         _ = await asyncio.gather(*tasks)
+        tasks = []
         print(idx)
     results = await asyncio.gather(*tasks)
     printResults(results)
@@ -122,6 +124,7 @@ async def compose(addr, nodes, limit=200):
         idx += 1
         if idx % limit == 0:
           _ = await asyncio.gather(*tasks)
+          tasks = []
           print(idx)
     results = await asyncio.gather(*tasks)
     printResults(results)

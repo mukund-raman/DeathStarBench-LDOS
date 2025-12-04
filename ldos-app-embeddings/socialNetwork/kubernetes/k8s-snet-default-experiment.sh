@@ -26,7 +26,7 @@ WORKER_NODES=(
 
 # Workload parameters (tuned for stability on CloudLab cluster)
 WRK_THREADS=4
-WRK_CONNS=32
+WRK_CONNS=64
 WRK_DURATION="30s"
 WRK_RPS=500
 RUNS_PER_WORKLOAD=3
@@ -288,7 +288,7 @@ write_placements_json() {
   local placements_json="$1"
   cat > "$OUTPUT_JSON" <<-EOF
     {
-      "placements": ${placements_json}
+      "placements": $placements_json
     }
 EOF
   log "Wrote placements to $OUTPUT_JSON"
@@ -297,20 +297,26 @@ EOF
 # Write combined results to file, appending to existing JSON
 write_results_json() {
   local compose_json="$1" home_json="$2" user_json="$3" mixed_json="$4"
-  jq -n \
-    --argfile current "${OUTPUT_JSON:-/dev/null}" \
-    --argjson compose "$compose_json" \
-    --argjson home "$home_json" \
-    --argjson user "$user_json" \
-    --argjson mixed "$mixed_json" \
-    '
-      ($current // {}) + {
-        "compose-post": $compose,
-        "read-home-timelines": $home,
-        "read-user-timelines": $user,
-        "mixed-workload": $mixed
-      }
-    ' > "$OUTPUT_JSON"
+  
+  # Read current content of file if it exists
+  local current_content="{}"
+  if [ -f "$OUTPUT_JSON" ]; then
+    current_content=$(cat "$OUTPUT_JSON")
+  fi
+
+  # Create JSON object with new data
+  local new_data=$(cat <<-JSON
+    {
+      "compose-post": ${compose_json},
+      "read-home-timelines": ${home_json},
+      "read-user-timelines": ${user_json},
+      "mixed-workload": ${mixed_json}
+    }
+JSON
+  )
+
+  # Append new data to file
+  echo "$current_content" "$new_data" | jq -s '.[0] * .[1]' > "$OUTPUT_JSON"
   log "Wrote results to $OUTPUT_JSON"
 }
 
