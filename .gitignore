@@ -10,3 +10,4 @@ wrk2/wrk
 /wrk2/deps/
 .venv
 runs
+__pycache__

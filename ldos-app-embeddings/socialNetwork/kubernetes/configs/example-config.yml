@@ -1,0 +1,16 @@
+node-placements:
+  - node0:
+    - app1
+    - app2
+  - node1:
+    - app3
+    - app4
+  - node2:
+    - app5
+    - app6
+  - node3:
+    - app7
+    - app8
+  - node4:
+    - app9
+    - app10

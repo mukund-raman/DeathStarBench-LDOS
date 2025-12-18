@@ -280,6 +280,7 @@ if [ "$DO_CLUSTER" = true ]; then
 
     # Untaint control plane to allow scheduling pods on it
     log "Untainting control plane to allow scheduling..."
+    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || true"
     run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true"
 
     # Setup kubeconfig

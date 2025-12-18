@@ -38,7 +38,7 @@ WARMUP_RPS=200
 INIT_GRAPH="socfb-Reed98" # Graph to initialize
 CLEAN_RUN_DIRS_ON_START=true # set true to remove existing run directories
 VERBOSE=false # set true to enable bash -x and verbose SSH
-OUTPUT_JSON="$(dirname "$0")/k8s-default-snet-results.json" # output JSON
+OUTPUT_JSON="$(dirname "$0")/results/k8s-default-snet-results.json"
 
 # Retries/backoff for unhealthy runs
 MAX_RUN_RETRIES=2
@@ -337,6 +337,11 @@ main() {
     rm -rf "$RUNS_ROOT"
   fi
   mkdir -p "$RUNS_ROOT"
+
+  # Update output JSON location if provided as argument
+  if [ -n "$1" ]; then
+    OUTPUT_JSON="$1"
+  fi
 
   # Build placements JSON and write to file
   local placements_json
