@@ -15,7 +15,7 @@ RESULTS_DIR="$(dirname "$0")/results/rand-search"
 
 # Get list of all nodes and microservices and number of configs to generate
 echo "Fetching nodes and services..."
-NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | cut -c1-5 | tr '\n' ' ')
 MICROSERVICES=$(kubectl get deployments -o jsonpath='{.items[*].metadata.name}')
 NUM_CONFIGS=$1
 if [ -z "$NUM_CONFIGS" ]; then

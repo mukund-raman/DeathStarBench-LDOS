@@ -38,15 +38,15 @@ def generate_random_placement(num_services, num_nodes):
 # farthest from any existing placement
 def maximin_sample(pool, num_to_select, start_configs):
     # Initialize necessary numpy arrays
-    selected = np.array(start_configs)
-    pool_arr, min_dists = np.array(pool), np.array([selected[0]] * len(pool))
+    selected, pool_arr = np.array(start_configs), np.array(pool)
+    min_dists = np.array([get_hamming_distance(p, selected[0]) for p in pool_arr])
     
     # Select placements in an optimized manner by reusing the minimum distance
     # for previously selected placements with the latest selected placement
     while len(selected) < num_to_select:
         new_dists = np.array([get_hamming_distance(p, selected[-1]) for p in pool_arr])
         min_dists = np.minimum(min_dists, new_dists)
-        selected = np.vstack([selected, pool[np.argmax(min_dists)]])
+        selected = np.vstack([selected, pool_arr[np.argmax(min_dists)]])
     return selected
 
 # Save placement vector as a YAML config file
