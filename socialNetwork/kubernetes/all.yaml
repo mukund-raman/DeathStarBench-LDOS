@@ -5494,9 +5494,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - ComposePostService        
         volumeMounts:
@@ -5539,9 +5539,9 @@ spec:
         - containerPort: 6379
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - /social-network-microservices/config/redis.conf        
         volumeMounts:
@@ -5581,9 +5581,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - HomeTimelineService        
         volumeMounts:
@@ -5675,7 +5675,7 @@ spec:
         - containerPort: 8081
         resources:
           requests:
-            cpu: 250m
+            cpu: 500m
           limits:
             cpu: 1000m
         env:
@@ -5742,9 +5742,9 @@ spec:
         - containerPort: 11211
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: media-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -5785,9 +5785,9 @@ spec:
         - containerPort: 27017
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -5828,9 +5828,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - MediaService        
         volumeMounts:
@@ -5873,7 +5873,7 @@ spec:
         - containerPort: 8080
         resources:
           requests:
-            cpu: 250m
+            cpu: 500m
           limits:
             cpu: 1000m
         env:
@@ -5961,9 +5961,9 @@ spec:
         - containerPort: 11211
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: post-storage-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -6004,9 +6004,9 @@ spec:
         - containerPort: 27017
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6047,9 +6047,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - PostStorageService        
         volumeMounts:
@@ -6092,9 +6092,9 @@ spec:
         - containerPort: 27017
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6135,9 +6135,9 @@ spec:
         - containerPort: 6379
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - /social-network-microservices/config/redis.conf        
         volumeMounts:
@@ -6177,9 +6177,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - SocialGraphService        
         volumeMounts:
@@ -6222,9 +6222,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - TextService        
         volumeMounts:
@@ -6267,9 +6267,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UniqueIdService        
         volumeMounts:
@@ -6312,9 +6312,9 @@ spec:
         - containerPort: 11211
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: url-shorten-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -6355,9 +6355,9 @@ spec:
         - containerPort: 27017
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6398,9 +6398,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UrlShortenService        
         volumeMounts:
@@ -6443,9 +6443,9 @@ spec:
         - containerPort: 11211
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: user-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -6486,9 +6486,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UserMentionService        
         volumeMounts:
@@ -6531,9 +6531,9 @@ spec:
         - containerPort: 27017
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6574,9 +6574,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UserService        
         volumeMounts:
@@ -6619,9 +6619,9 @@ spec:
         - containerPort: 27017
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6662,9 +6662,9 @@ spec:
         - containerPort: 6379
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - /social-network-microservices/config/redis.conf        
         volumeMounts:
@@ -6704,9 +6704,9 @@ spec:
         - containerPort: 9090
         resources:
           requests:
-            cpu: 250m
-          limits:
             cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UserTimelineService        
         volumeMounts:

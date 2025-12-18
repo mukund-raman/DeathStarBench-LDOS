@@ -82,6 +82,7 @@ cleanup_deps_node() {
 # Reset Kubernetes state
 reset_k8s_node() {
     local cmd="
+        sudo systemctl start docker containerd || true
         sudo kubeadm reset -f || true
         sudo systemctl stop kubelet || true
         sudo systemctl stop docker || true
@@ -128,14 +129,14 @@ install_dependencies_node() {
         # Configure Docker daemon
         sudo mkdir -p /etc/docker
         cat <<EOF | sudo tee /etc/docker/daemon.json
-{
-  \"exec-opts\": [\"native.cgroupdriver=systemd\"],
-  \"log-driver\": \"json-file\",
-  \"log-opts\": {
-    \"max-size\": \"100m\"
-  },
-  \"storage-driver\": \"overlay2\"
-}
+            {
+            \"exec-opts\": [\"native.cgroupdriver=systemd\"],
+            \"log-driver\": \"json-file\",
+            \"log-opts\": {
+                \"max-size\": \"100m\"
+            },
+            \"storage-driver\": \"overlay2\"
+            }
 EOF
         # Fix for Docker socket activation issues
         sudo systemctl stop docker.socket docker.service || true
@@ -274,6 +275,7 @@ fi
 # 4. Setup Cluster
 if [ "$DO_CLUSTER" = true ]; then
     log "Initializing Control Plane..."
+    run_local "sudo systemctl start docker containerd || true"
     run_local "sudo kubeadm init --pod-network-cidr=10.244.0.0/16"
 
     # Untaint control plane to allow scheduling pods on it
@@ -311,8 +313,9 @@ if [ "$DO_CLUSTER" = true ]; then
         run_remote "$node" "sudo $JOIN_CMD"
     done
 
-    # Restart worker node services to fix potential NotReady state
-    log "Restarting containerd and kubelet on worker nodes to ensure readiness..."
+    # Restart all node services to fix potential NotReady state
+    log "Restarting containerd and kubelet on all nodes to ensure readiness..."
+    sudo systemctl restart containerd && sudo systemctl restart kubelet
     for node in "${WORKER_NODES[@]}"; do
         run_remote "$node" "sudo systemctl restart containerd && sudo systemctl restart kubelet"
     done
