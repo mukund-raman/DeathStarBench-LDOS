@@ -9,6 +9,10 @@
 
 set -e
 
+# SSH key and user for worker nodes
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+SSH_USER="mkraman"
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 CONFIGS_DIR="$DIR/configs"
 RESULTS_DIR="$DIR/results"
@@ -41,6 +45,10 @@ run_experiment() {
     
     echo "Finished experiment for $config_name"
 }
+
+# Start the SSH agent
+eval "$(ssh-agent -s)"
+ssh-add "$SSH_KEY"
 
 if [ "$1" == "--all" ]; then
     echo "Running all configs in $CONFIGS_DIR..."

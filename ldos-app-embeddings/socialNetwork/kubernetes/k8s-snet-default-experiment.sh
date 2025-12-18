@@ -349,8 +349,8 @@ main() {
   write_placements_json "$placements_json"
 
   # Start the SSH agent
-  eval "$(ssh-agent -s)"
-  ssh-add "$SSH_KEY"
+  # eval "$(ssh-agent -s)"
+  # ssh-add "$SSH_KEY"
 
   # Wait for services to be ready, init social graph, build wrk2 scripts
   wait_for_frontend_ready
