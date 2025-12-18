@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 # Perform a random search over the placement of microservices in the cluster.
 # Store the best config in the best-rsearch-config.yml file in the configs
@@ -33,7 +33,7 @@ python3 "$(dirname "$0")/generate_rand_configs.py" \
 # 2. Loop through configs and run experiments
 echo "Starting experiments..."
 for config_file in $(ls "$CONFIGS_DIR"/config-*.yml | sort); do
-    config_name=$(basename "$config_file" .yml)
+    config_name=$(basename "$config_file" .yml | sed 's/^config-//')
     result_file="$RESULTS_DIR/rand-search-${config_name}.json"
     
     echo "=================================================="
@@ -70,7 +70,7 @@ best_config_name=""
 # Calculate average median end-to-end latency for each config
 shopt -s nullglob
 for result_file in "$RESULTS_DIR"/rand-search-*.json; do
-    config_name=$(basename "$result_file" .json)
+    config_name=$(basename "$result_file" .json | sed 's/^rand-search-//')
     avg_median_latency=$(jq -r '
       [.. | .e2e_median? | numbers] as $v
       | if ($v | length) > 0

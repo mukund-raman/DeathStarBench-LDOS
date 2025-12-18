@@ -36,17 +36,17 @@ def generate_random_placement(num_services, num_nodes):
 
 # Select placements using Maximin strategy, i.e., select placements that are
 # farthest from any existing placement
-def maximin_sample(pool, num_to_select):
-    # Pick one random placement as seed, pre-compute pool as numpy array
-    selected = np.array([pool[random.choice(range(len(pool)))]])
-    pool_arr, min_dists = np.array(pool), np.array([np.inf] * len(pool))
+def maximin_sample(pool, num_to_select, start_configs):
+    # Initialize necessary numpy arrays
+    selected = np.array(start_configs)
+    pool_arr, min_dists = np.array(pool), np.array([selected[0]] * len(pool))
     
     # Select placements in an optimized manner by reusing the minimum distance
     # for previously selected placements with the latest selected placement
     while len(selected) < num_to_select:
         new_dists = np.array([get_hamming_distance(p, selected[-1]) for p in pool_arr])
         min_dists = np.minimum(min_dists, new_dists)
-        selected = np.append(selected, pool[np.argmax(min_dists)])
+        selected = np.vstack([selected, pool[np.argmax(min_dists)]])
     return selected
 
 # Save placement vector as a YAML config file
@@ -77,10 +77,18 @@ if __name__ == "__main__":
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     
-    # Generate random pool, perform maximin sampling, and save configs
+    # Create two starting configs to guide the maximin sampling
+    start_configs = [
+        [i % num_nodes for i in range(num_services)], # Balanced
+        [0] * num_services # All on Node 0
+    ]
+
+    # Generate random pool and perform maximin sampling
     print(f"Generating {args.num_configs} configs for {num_services} services on {num_nodes} nodes...")
     pool = [generate_random_placement(num_services, num_nodes) for _ in range(args.pool_size)]
-    placements = maximin_sample(pool, args.num_configs)
+    placements = maximin_sample(pool, args.num_configs, start_configs)
+    
+    # Save configs
     for i, p in enumerate(placements):
         fname = os.path.join(args.output_dir, f"config-{i:03d}.yml")
         save_config(p, nodes, services, fname)
