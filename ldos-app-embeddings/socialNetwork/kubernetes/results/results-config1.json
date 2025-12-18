@@ -1,0 +1,41 @@
+    {
+      "placements": {
+  "node0": [
+    "jaeger",
+    "nginx-thrift",
+    "post-storage-service",
+    "unique-id-service",
+    "user-mention-service",
+    "user-timeline-service"
+  ],
+  "node1": [
+    "post-storage-memcached",
+    "post-storage-mongodb",
+    "url-shorten-mongodb",
+    "url-shorten-service",
+    "user-memcached",
+    "user-timeline-redis"
+  ],
+  "node2": [
+    "compose-post-service",
+    "media-service",
+    "social-graph-service",
+    "text-service",
+    "url-shorten-memcached"
+  ],
+  "node3": [
+    "home-timeline-redis",
+    "media-mongodb",
+    "social-graph-redis",
+    "user-service",
+    "user-timeline-mongodb"
+  ],
+  "node4": [
+    "home-timeline-service",
+    "media-frontend",
+    "media-memcached",
+    "social-graph-mongodb",
+    "user-mongodb"
+  ]
+}
+    }

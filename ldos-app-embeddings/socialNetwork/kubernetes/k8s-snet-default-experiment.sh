@@ -115,7 +115,7 @@ init_social_graph() {
   (
     cd "${SOCIAL_DIR}" && \
     python3 -m pip install -q aiohttp asyncio && \
-    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=64 --ip="${NODE_IP}" --port=32000
+    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=16 --ip="${NODE_IP}" --port=32000
   )
 }
 

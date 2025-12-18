@@ -28,8 +28,8 @@ run_experiment() {
     "$DIR/pin-microservices.sh" "$config_file"
     
     # 2. Wait for stabilization
-    echo "Waiting 60s for pods to restart and stabilize..."
-    sleep 60
+    echo "Waiting 30s for pods to restart and stabilize..."
+    sleep 30
     
     # Wait for frontend specifically (reusing logic from experiment script if
     # possible, but simple sleep + check is okay for now). 

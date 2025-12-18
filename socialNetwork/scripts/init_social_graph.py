@@ -77,16 +77,19 @@ async def register(addr, nodes, limit=200):
   tasks = []
   conn = aiohttp.TCPConnector(limit=limit)
   async with aiohttp.ClientSession(connector=conn) as session:
+    all_results = []
     print('Registering Users...')
     for i in range(nodes):
       task = asyncio.ensure_future(upload_register(session, addr, str(i)))
       tasks.append(task)
       if i % limit == 0:
-        _ = await asyncio.gather(*tasks)
+        res = await asyncio.gather(*tasks)
+        all_results.extend(res)
         tasks = []
         print(i)
-    results = await asyncio.gather(*tasks)
-    printResults(results)
+    res = await asyncio.gather(*tasks)
+    all_results.extend(res)
+    printResults(all_results)
 
 
 async def follow(addr, edges, limit=200):
@@ -94,6 +97,7 @@ async def follow(addr, edges, limit=200):
   tasks = []
   conn = aiohttp.TCPConnector(limit=limit)
   async with aiohttp.ClientSession(connector=conn) as session:
+    all_results = []
     print('Adding follows...')
     for edge in edges:
       task = asyncio.ensure_future(
@@ -104,11 +108,13 @@ async def follow(addr, edges, limit=200):
       tasks.append(task)
       idx += 1
       if idx % limit == 0:
-        _ = await asyncio.gather(*tasks)
+        res = await asyncio.gather(*tasks)
+        all_results.extend(res)
         tasks = []
         print(idx)
-    results = await asyncio.gather(*tasks)
-    printResults(results)
+    res = await asyncio.gather(*tasks)
+    all_results.extend(res)
+    printResults(all_results)
 
 
 async def compose(addr, nodes, limit=200):
@@ -116,6 +122,7 @@ async def compose(addr, nodes, limit=200):
   tasks = []
   conn = aiohttp.TCPConnector(limit=limit)
   async with aiohttp.ClientSession(connector=conn) as session:
+    all_results = []
     print('Composing posts...')
     for i in range(nodes):
       for _ in range(random.randint(0, 20)):  # up to 20 posts per user, average 10
@@ -123,11 +130,13 @@ async def compose(addr, nodes, limit=200):
         tasks.append(task)
         idx += 1
         if idx % limit == 0:
-          _ = await asyncio.gather(*tasks)
+          res = await asyncio.gather(*tasks)
+          all_results.extend(res)
           tasks = []
           print(idx)
-    results = await asyncio.gather(*tasks)
-    printResults(results)
+    res = await asyncio.gather(*tasks)
+    all_results.extend(res)
+    printResults(all_results)
 
 
 if __name__ == '__main__':
