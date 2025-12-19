@@ -44,8 +44,9 @@ OUTPUT_JSON="$(dirname "$0")/results/k8s-default-snet-results.json"
 MAX_RUN_RETRIES=2
 RETRY_BACKOFF_SEC=5
 
-# Get the node IP for NodePort access (NodePorts bind to node IPs, not localhost)
-NODE_IP="$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || echo "127.0.0.1")"
+# Get the node IP for NodePort access (NodePorts bind to node IPs)
+NODE_IP="$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | head -n 1)"
+if [ -z "$NODE_IP" ]; then NODE_IP="127.0.0.1"; fi
 
 # =========================
 # Internal helpers
@@ -78,9 +79,11 @@ wait_for_frontend_ready() {
       # Verify that the HTTP endpoint is responding (similar to Swarm script).
       local code="000"
       for _ in $(seq 1 60); do
+        # Use a high random ID to avoid conflict with initial social graph users (ids 0+)
+        local probe_id=$((RANDOM + 100000))
         code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
           -X POST "http://${NODE_IP}:32000/wrk2-api/user/register" \
-          -d "first_name=probe&last_name=probe&username=probe_$RANDOM&password=x&user_id=0" || echo "000")
+          -d "first_name=probe&last_name=probe&username=probe_$RANDOM&password=x&user_id=$probe_id" || echo "000")
         if [[ "$code" == "200" ]]; then
           log "Registration endpoint ready (HTTP 200)"
           return 0
@@ -104,7 +107,7 @@ wait_for_frontend_ready() {
 # Initialize social graph on control node
 init_social_graph() {
   log "Initializing social graph (${INIT_GRAPH})"
-  
+
   # Activate venv if it exists
   if [ -f "${ROOT_DIR}/../.venv/bin/activate" ]; then
       source "${ROOT_DIR}/../.venv/bin/activate"
@@ -112,10 +115,19 @@ init_social_graph() {
       source "${ROOT_DIR}/.venv/bin/activate"
   fi
 
+  # Clean existing user data to prevent conflicts with previous runs
+  log "Cleaning MongoDB user database..."
+  local mongo_pod
+  mongo_pod=$(kubectl get pod -l service=user-mongodb -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
+  if [ -n "$mongo_pod" ]; then
+      kubectl exec "$mongo_pod" -- mongo user --eval "db.dropDatabase()" || true
+  fi
+
+  # Initialize social graph
   (
     cd "${SOCIAL_DIR}" && \
     python3 -m pip install -q aiohttp asyncio && \
-    python3 scripts/init_social_graph.py --graph="${INIT_GRAPH}" --limit=16 --ip="${NODE_IP}" --port=32000
+    python3 "${SOCIAL_DIR}/scripts/init_social_graph.py" --graph="${INIT_GRAPH}" --limit=16 --ip="${NODE_IP}" --port=32000
   )
 }
 
@@ -339,8 +351,8 @@ main() {
   mkdir -p "$RUNS_ROOT"
 
   # Update output JSON location if provided as argument
-  if [ -n "$1" ]; then
-    OUTPUT_JSON="$1"
+  if [ -n "${1:-}" ]; then
+    OUTPUT_JSON="${1}"
   fi
 
   # Build placements JSON and write to file

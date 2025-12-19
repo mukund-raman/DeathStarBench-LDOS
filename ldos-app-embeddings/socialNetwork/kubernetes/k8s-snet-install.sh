@@ -150,7 +150,7 @@ EOF
         curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
         echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
         sudo apt-get update
-        sudo apt-get install -y kubelet kubeadm kubectl
+        sudo apt-get install -y kubelet kubeadm kubectl ethtool
         sudo apt-mark hold kubelet kubeadm kubectl
         
         # Disable swap
@@ -278,15 +278,17 @@ if [ "$DO_CLUSTER" = true ]; then
     run_local "sudo systemctl start docker containerd || true"
     run_local "sudo kubeadm init --pod-network-cidr=10.244.0.0/16"
 
-    # Untaint control plane to allow scheduling pods on it
-    log "Untainting control plane to allow scheduling..."
-    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || true"
-    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true"
-
     # Setup kubeconfig
     mkdir -p $HOME/.kube
     sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
     sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+    # Untaint control plane to allow scheduling pods on it
+    log "Untainting control plane to allow scheduling..."
+    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || true"
+    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true"
+    run_local "kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true"
+    run_local "kubectl taint nodes --all node-role.kubernetes.io/master- || true"
 
     # Install Flannel
     log "Installing Flannel CNI..."
@@ -298,14 +300,19 @@ if [ "$DO_CLUSTER" = true ]; then
         echo "Waiting for API server... ($i/60)"
         sleep 2
     done
-    log "Applying Flannel CNI with retry..."
+
+    # Download and patch Flannel for host-gw
+    log "Applying Flannel CNI (host-gw mode)..."
+    curl -fsSL -o kube-flannel.yml https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+    sed -i 's/"Type": "vxlan"/"Type": "host-gw"/' kube-flannel.yml
     for i in {1..5}; do
-        if kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml; then
+        if kubectl apply -f kube-flannel.yml; then
             break
         fi
         log "Retry applying Flannel ($i/5)..."
         sleep 5
     done
+    rm -f kube-flannel.yml
 
     # Join Workers
     log "Joining Worker Nodes..."
