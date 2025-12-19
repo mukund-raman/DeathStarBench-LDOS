@@ -2,9 +2,8 @@ import argparse
 import json
 import os
 import matplotlib.pyplot as plt
-import numpy as np
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Visualize Kubernetes Experiment Results')
     parser.add_argument('results_dir', help='Directory containing result JSON files')
     args = parser.parse_args()
@@ -96,6 +95,3 @@ def main():
     output_image = os.path.join(results_dir, f"{os.path.basename(results_dir.rstrip('/'))}-graph.png")
     plt.savefig(output_image)
     print(f"Graph saved to {output_image}")
-
-if __name__ == "__main__":
-    main()
