@@ -43,12 +43,6 @@ if [ "$#" -eq 1 ] && [ -f "$1" ]; then
     echo "Applying configuration from $CONFIG_FILE..."
     
     # Use python to parse YAML and output "service node" pairs
-    # expected format:
-    # node-placements:
-    #   - node0:
-    #     - service A
-    #     - service B
-    
     python3 -c "
 import sys, yaml
 
@@ -81,4 +75,4 @@ else
     exit 1
 fi
 
-echo "All services pinned. Waiting for rollout..."
+echo "All services pinned. Waiting for deployment..."

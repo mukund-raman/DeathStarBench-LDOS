@@ -30,11 +30,9 @@ if __name__ == "__main__":
                     node_counts[node] = len(pods)
                 busiest_node = max(node_counts, key=node_counts.get) if node_counts else "unknown"
 
-                # Extract Average Median Latency
-                # We average the e2e_median across the 3 runs (if available) and 
-                # across the 4 workloads (compose, home, user, mixed)
-                # Structure: data["compose-post"] is a list of run objects
-                
+                # Extract average median latency by averaging the e2e_median
+                # across the 3 runs (if available) and across the 4 workloads
+                # (compose, home, user, mixed)
                 workloads = ["compose-post", "read-home-timelines", "read-user-timelines", "mixed-workload"]
                 total_latency = 0
                 count = 0
@@ -49,7 +47,8 @@ if __name__ == "__main__":
                             pass
                 avg_median_latency = (total_latency / count) if count > 0 else 0
                 
-                # Placeholder for placement ID - parsing from filename for now: results-config1.json -> P1
+                # Placeholder for placement ID - parsing from filename for
+                # now: results-config1.json -> P1
                 placement_id = "P" + filename.split(".")[0][-1]
                 data_points.append({
                     "id": placement_id,
@@ -92,6 +91,7 @@ if __name__ == "__main__":
     plt.legend(handles, unique_nodes, title="Busiest Node")    
     plt.tight_layout()
     
-    output_image = os.path.join(results_dir, f"{os.path.basename(results_dir.rstrip('/'))}-graph.png")
+    output_image = os.path.join(results_dir, \
+        f"{os.path.basename(results_dir.rstrip('/'))}-graph.png")
     plt.savefig(output_image)
     print(f"Graph saved to {output_image}")
