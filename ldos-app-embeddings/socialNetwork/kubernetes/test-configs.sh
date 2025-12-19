@@ -28,21 +28,12 @@ run_experiment() {
     echo "Output: $output_file"
     echo "=================================================="
     
-    # 1. Pin microservices
+    # Pin microservices, wait for stabilization, and run experiment
     "$DIR/pin-microservices.sh" "$config_file"
-    
-    # 2. Wait for stabilization
     echo "Waiting 30s for pods to restart and stabilize..."
     sleep 30
-    
-    # Wait for frontend specifically (reusing logic from experiment script if
-    # possible, but simple sleep + check is okay for now). 
-    # ideally we call a wait script.
-    
-    # 3. Run experiment
     echo "Running experiment..."
     "$DIR/k8s-snet-default-experiment.sh" "$output_file"
-    
     echo "Finished experiment for $config_name"
 }
 
@@ -50,6 +41,7 @@ run_experiment() {
 eval "$(ssh-agent -s)"
 ssh-add "$SSH_KEY"
 
+# Run experiment on all configs or a specific config
 if [ "$1" == "--all" ]; then
     echo "Running all configs in $CONFIGS_DIR..."
     for config_file in "$CONFIGS_DIR"/config*.yml; do
