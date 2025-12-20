@@ -5,6 +5,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Threshold for outliers in microseconds (100 ms)
+OUTLIER_THRESHOLD_US = 100000
+
 if __name__ == "__main__":
     # Parse arguments and verify results directory
     parser = argparse.ArgumentParser(description='Visualize Kubernetes Experiment Results')
@@ -51,11 +54,18 @@ if __name__ == "__main__":
                             pass
                 avg_median_latency = (total_latency / count) if count > 0 else 0
                 
-                # Placement ID from filename: rand-search-000 -> P000
-                placement_id = "P" + filename.replace("rand-search-", "") \
-                    .replace("results-", "").replace(".json", "")
-                if "config" in placement_id:
-                     placement_id = placement_id.replace("config", "")
+                # Placement ID from filename:
+                #   if rand search: rand-search-000.json -> P000
+                #   if bayes search: bayes-result-000.json -> P000
+                placement_id = "P"
+                if "rand-search" in filename:
+                    placement_id += filename.replace("rand-search-", "")
+                elif "bayes-result" in filename:
+                    placement_id += filename.replace("bayes-result-", "")
+                else:
+                    print(f"Error in parsing filename {filename}.")
+                    sys.exit(1)
+                placement_id = placement_id.replace(".json", "")
 
                 # Add data point to list 
                 data_points.append({
@@ -69,9 +79,19 @@ if __name__ == "__main__":
 
     # Sort by latency and verify data points
     data_points.sort(key=lambda x: x["latency"])
-    if not data_points:
-        print("No valid data found.")
+    
+    # Filter outliers and use valid points for plotting
+    valid_points = []
+    outliers = []
+    for dp in data_points:
+        if dp["latency"] > OUTLIER_THRESHOLD_US:
+            outliers.append(dp)
+        else:
+            valid_points.append(dp)
+    if not valid_points:
+        print("No valid data found (all points were outliers or no data).")
         sys.exit(0)
+    data_points = valid_points
 
     # Prepare for plotting
     ids = [d["id"] for d in data_points]
@@ -101,10 +121,22 @@ if __name__ == "__main__":
     
     # Add labels and title
     plt.xlabel('Placement Configuration')
-    plt.ylabel('Avg Median End-to-End Latency (ms)')
+    plt.ylabel('Avg Median End-to-End Latency (μs)')
     plt.title('Performance by Placement and Microservice Distribution')
     plt.xticks(rotation=45)
     plt.legend(title="Node Distribution", bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Add outlier text to the plot
+    if outliers:
+        outlier_text = f"Placement Outliers (> {int(OUTLIER_THRESHOLD_US/1000)}ms):\n"
+        for dp in outliers[:3]:
+            outlier_text += f"{dp['id']}: {dp['latency']/1000:.2f} ms\n"
+        if len(outliers) > 3:
+            remaining_ids = [dp['id'] for dp in outliers[3:]]
+            outlier_text += "Others: " + ", ".join(remaining_ids)
+        plt.text(1.05, 0.5, outlier_text, transform=plt.gca().transAxes, 
+                 verticalalignment='top', fontsize=9, 
+                 bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.9, edgecolor='gray'))
     plt.tight_layout()
     
     output_image = os.path.join(results_dir, \
