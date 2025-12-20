@@ -15,7 +15,8 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 SSH_USER="mkraman"
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-OUTPUT_DIR="$DIR/configs/bayes-search"
+CONFIG_DIR="$DIR/configs/bayes-search"
+RESULT_DIR="$DIR/results/bayes-search"
 
 # Start the SSH agent
 eval "$(ssh-agent -s)"
@@ -38,18 +39,23 @@ echo "=================================================="
 echo "Starting Bayesian Optimization Experiment"
 echo "Nodes: $NODES"
 echo "Services found: $(echo $MICROSERVICES | wc -w)"
-echo "Output Directory: $OUTPUT_DIR"
+echo "Config Directory: $CONFIG_DIR"
+echo "Result Directory: $RESULT_DIR"
 echo "Optimization: $NUM_CALLS iterations ($NUM_RANDOM_STARTS random starts)"
 echo "=================================================="
+
+mkdir -p "$CONFIG_DIR"
+mkdir -p "$RESULT_DIR"
 
 # Run the Python optimization script
 python3 "$DIR/bayes_optimization.py" \
     --nodes $NODES \
     --services $MICROSERVICES \
-    --output-dir "$OUTPUT_DIR" \
+    --config-dir "$CONFIG_DIR" \
+    --result-dir "$RESULT_DIR" \
     --n-calls "$NUM_CALLS" \
     --n-random-starts "$NUM_RANDOM_STARTS"
 
 echo "Experiments completed."
-echo "Check $OUTPUT_DIR/best-bayes-config.yml for the optimal configuration."
-echo "Full history available in $OUTPUT_DIR/bayes-history.json"
+echo "Check $CONFIG_DIR/best-bayes-config.yml for the optimal configuration."
+echo "Full history available in $CONFIG_DIR/bayes-history.json"

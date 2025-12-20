@@ -15,7 +15,8 @@ class ExperimentContext:
     def __init__(self):
         self.nodes = []
         self.services = []
-        self.output_dir = "."
+        self.config_dir = "."
+        self.result_dir = "."
         self.scripts_dir = "."
         self.iteration = 0
         self.history = []
@@ -99,9 +100,9 @@ def objective_function(x):
     
     # Determine file paths
     config_filename = f"bayes-config-{context.iteration:03d}.yml"
-    config_path = os.path.join(context.output_dir, config_filename)
+    config_path = os.path.join(context.config_dir, config_filename)
     result_filename = f"bayes-result-{context.iteration:03d}.json"
-    result_path = os.path.join(context.output_dir, result_filename)
+    result_path = os.path.join(context.result_dir, result_filename)
 
     # Save config and run experiment
     save_config(x, config_path)
@@ -115,8 +116,8 @@ def objective_function(x):
     score = parse_results(result_path)
     context.history.append({
         "iteration": context.iteration,
-        "config": x,
-        "score": score,
+        "config": [int(val) for val in x],
+        "score": float(score),
         "config_file": config_path,
         "result_file": result_path
     })
@@ -126,7 +127,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Bayesian Optimization for node placement.")
     parser.add_argument("--nodes", nargs="+", required=True, help="List of node names")
     parser.add_argument("--services", nargs="+", required=True, help="List of microservices")
-    parser.add_argument("--output-dir", required=True, help="Directory to store configs and results")
+    parser.add_argument("--config-dir", required=True, help="Directory to store configs")
+    parser.add_argument("--result-dir", required=True, help="Directory to store results")
     parser.add_argument("--n-calls", type=int, default=30, help="Number of BO iterations")
     parser.add_argument("--n-random-starts", type=int, default=10, help="Number of random initialization points")
     
@@ -135,10 +137,13 @@ if __name__ == "__main__":
     # Initialize context
     context.nodes = args.nodes
     context.services = args.services
-    context.output_dir = args.output_dir
+    context.config_dir = args.config_dir
+    context.result_dir = args.result_dir
     context.scripts_dir = os.path.dirname(os.path.abspath(__file__))
-    if not os.path.exists(context.output_dir):
-        os.makedirs(context.output_dir)
+    if not os.path.exists(context.config_dir):
+        os.makedirs(context.config_dir)
+    if not os.path.exists(context.result_dir):
+        os.makedirs(context.result_dir)
     
     num_services = len(context.services)
     num_nodes = len(context.nodes)
@@ -163,12 +168,12 @@ if __name__ == "__main__":
     print(f"Best config vector: {res.x}")
 
     # Save best config
-    best_config_path = os.path.join(context.output_dir, "best-bayes-config.yml")
+    best_config_path = os.path.join(context.config_dir, "best-bayes-config.yml")
     save_config(res.x, best_config_path)
     print(f"Best configuration saved to {best_config_path}")
 
     # Save full optimization history
-    history_path = os.path.join(context.output_dir, "bayes-history.json")
+    history_path = os.path.join(context.config_dir, "bayes-history.json")
     with open(history_path, 'w') as f:
         json.dump(context.history, f, indent=2)
     print(f"History saved to {history_path}")
