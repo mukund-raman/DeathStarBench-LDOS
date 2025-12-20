@@ -2,7 +2,7 @@
 
 # Given a directory of results, visualize the results.
 # Usage: visualize-results.sh <results-directory>
-# Example: visualize-results.sh results/rsearch
+# Example: visualize-results.sh results/rand-search
 # Example: visualize-results.sh results/bayes-search
 
 set -e

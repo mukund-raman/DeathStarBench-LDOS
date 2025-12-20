@@ -9,6 +9,10 @@
 # Usage: rand-search-experiment.sh <num-experiments>
 # Example: rand-search-experiment.sh 30
 
+# SSH key and user for worker nodes
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+SSH_USER="mkraman"
+
 # Directories
 CONFIGS_DIR="$(dirname "$0")/configs/rand-search"
 RESULTS_DIR="$(dirname "$0")/results/rand-search"
@@ -21,6 +25,10 @@ NUM_CONFIGS=$1
 if [ -z "$NUM_CONFIGS" ]; then
     NUM_CONFIGS=30
 fi
+
+# Start the SSH agent
+eval "$(ssh-agent -s)"
+ssh-add "$SSH_KEY"
 
 # 1. Generate configurations using Python script
 echo "Generating $NUM_CONFIGS random configurations..."
