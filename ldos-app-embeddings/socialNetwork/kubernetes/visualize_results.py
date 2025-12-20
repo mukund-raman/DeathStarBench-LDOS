@@ -3,20 +3,21 @@ import sys
 import json
 import os
 import matplotlib.pyplot as plt
+import numpy as np
 
 if __name__ == "__main__":
+    # Parse arguments and verify results directory
     parser = argparse.ArgumentParser(description='Visualize Kubernetes Experiment Results')
     parser.add_argument('results_dir', help='Directory containing result JSON files')
     args = parser.parse_args()
-
     results_dir = args.results_dir
     if not os.path.exists(results_dir):
         print(f"Error: Directory {results_dir} does not exist.")
         sys.exit(1)
 
-    data_points = []
-
     # Iterate over all json files in the directory
+    data_points = []
+    all_nodes = set()
     for filename in os.listdir(results_dir):
         if filename.endswith(".json"):
             filepath = os.path.join(results_dir, filename)
@@ -24,16 +25,18 @@ if __name__ == "__main__":
                 with open(filepath, 'r') as f:
                     data = json.load(f)
                 
-                # Extract placements to find busiest node
+                # Extract placements and count microservices per node
                 placements = data.get("placements", {})
                 node_counts = {}
+                total_pods = 0
                 for node, pods in placements.items():
-                    node_counts[node] = len(pods)
-                busiest_node = max(node_counts, key=node_counts.get) if node_counts else "unknown"
-
+                    count = len(pods)
+                    node_counts[node] = count
+                    total_pods += count
+                    all_nodes.add(node)
+                
                 # Extract average median latency by averaging the e2e_median
-                # across the 3 runs (if available) and across the 4 workloads
-                # (compose, home, user, mixed)
+                # across the runs (if available) and across the workloads
                 workloads = ["compose-post", "read-home-timelines", "read-user-timelines", "mixed-workload"]
                 total_latency = 0
                 count = 0
@@ -53,48 +56,58 @@ if __name__ == "__main__":
                     .replace("results-", "").replace(".json", "")
                 if "config" in placement_id:
                      placement_id = placement_id.replace("config", "")
+
+                # Add data point to list 
                 data_points.append({
                     "id": placement_id,
                     "latency": avg_median_latency,
-                    "busiest_node": busiest_node
+                    "node_counts": node_counts,
+                    "total_pods": total_pods
                 })
-
             except Exception as e:
                 print(f"Skipping {filename}: {e}")
 
-    # Sort by latency
+    # Sort by latency and verify data points
     data_points.sort(key=lambda x: x["latency"])
-    
     if not data_points:
         print("No valid data found.")
         sys.exit(0)
 
-    # Preparation for Plotting
+    # Prepare for plotting
     ids = [d["id"] for d in data_points]
-    latencies = [d["latency"] for d in data_points]
-    busiest_nodes = [d["busiest_node"] for d in data_points]
-    unique_nodes = sorted(list(set(busiest_nodes)))
+    unique_nodes = sorted(list(all_nodes))
     
-    # Simple color map
-    colors_map = plt.cm.get_cmap('tab10', len(unique_nodes))
-    node_to_color = {node: colors_map(i) for i, node in enumerate(unique_nodes)}
-    bar_colors = [node_to_color[n] for n in busiest_nodes]
+    # Use a qualitative colormap to distinguish nodes clearly
+    colors_map = plt.get_cmap('tab10') 
+    node_to_color = {node: colors_map(i % 10) for i, node in enumerate(unique_nodes)}
 
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(ids, latencies, color=bar_colors)
+    # Set figure size and initialize bottom array for stacking bars
+    plt.figure(figsize=(12, 6))
+    bottoms = np.zeros(len(data_points))
     
+    # Plot each node's contribution as a segment of the bar
+    for node in unique_nodes:
+        segment_heights = []
+        for d in data_points:
+            # Calculate height proportional to microservice count on this node
+            if d["total_pods"] > 0:
+                fraction = d["node_counts"].get(node, 0) / d["total_pods"]
+                height = d["latency"] * fraction
+            else:
+                height = 0
+            segment_heights.append(height)
+        plt.bar(ids, segment_heights, bottom=bottoms, color=node_to_color[node], label=node)
+        bottoms += np.array(segment_heights)
+    
+    # Add labels and title
     plt.xlabel('Placement Configuration')
     plt.ylabel('Avg Median End-to-End Latency (ms)')
-    plt.title('Performance by Placement Configuration')
+    plt.title('Performance by Placement and Microservice Distribution')
     plt.xticks(rotation=45)
-    
-    # Legend
-    handles = [plt.Rectangle((0,0),1,1, color=node_to_color[n]) for n in unique_nodes]
-    plt.legend(handles, unique_nodes, title="Busiest Node")    
+    plt.legend(title="Node Distribution", bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     
     output_image = os.path.join(results_dir, \
-        f"{os.path.basename(results_dir.rstrip('/'))}-graph.png")
-    plt.savefig(output_image)
+        f"{os.path.basename(results_dir.rstrip('/'))}-dist-graph.png")
+    plt.savefig(output_image, bbox_inches='tight')
     print(f"Graph saved to {output_image}")
