@@ -1,4 +1,5 @@
 import argparse
+import sys
 import json
 import os
 import matplotlib.pyplot as plt
@@ -11,13 +12,13 @@ if __name__ == "__main__":
     results_dir = args.results_dir
     if not os.path.exists(results_dir):
         print(f"Error: Directory {results_dir} does not exist.")
-        return
+        sys.exit(1)
 
     data_points = []
 
     # Iterate over all json files in the directory
     for filename in os.listdir(results_dir):
-        if filename.endswith(".json") and "results-" in filename:
+        if filename.endswith(".json"):
             filepath = os.path.join(results_dir, filename)
             try:
                 with open(filepath, 'r') as f:
@@ -47,9 +48,11 @@ if __name__ == "__main__":
                             pass
                 avg_median_latency = (total_latency / count) if count > 0 else 0
                 
-                # Placeholder for placement ID - parsing from filename for
-                # now: results-config1.json -> P1
-                placement_id = "P" + filename.split(".")[0][-1]
+                # Placement ID from filename: rand-search-000 -> P000
+                placement_id = "P" + filename.replace("rand-search-", "") \
+                    .replace("results-", "").replace(".json", "")
+                if "config" in placement_id:
+                     placement_id = placement_id.replace("config", "")
                 data_points.append({
                     "id": placement_id,
                     "latency": avg_median_latency,
@@ -64,7 +67,7 @@ if __name__ == "__main__":
     
     if not data_points:
         print("No valid data found.")
-        return
+        sys.exit(0)
 
     # Preparation for Plotting
     ids = [d["id"] for d in data_points]

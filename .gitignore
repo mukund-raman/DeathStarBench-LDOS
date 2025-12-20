@@ -9,5 +9,6 @@ wrk2/obj/
 wrk2/wrk
 /wrk2/deps/
 .venv
+.venv_backup
 runs
 __pycache__
