@@ -10,8 +10,16 @@
 
 set -e
 
+# SSH key and user for worker nodes
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+SSH_USER="mkraman"
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 OUTPUT_DIR="$DIR/configs/bayes-search"
+
+# Start the SSH agent
+eval "$(ssh-agent -s)"
+ssh-add "$SSH_KEY"
 
 # Ensure Python dependencies are installed
 if ! python3 -c "import skopt" &> /dev/null; then
