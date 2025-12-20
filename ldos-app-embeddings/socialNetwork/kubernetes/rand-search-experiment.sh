@@ -9,6 +9,8 @@
 # Usage: rand-search-experiment.sh <num-experiments>
 # Example: rand-search-experiment.sh 30
 
+# Result of running ~30 random configs - P17 is best
+
 # SSH key and user for worker nodes
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 SSH_USER="mkraman"
@@ -80,7 +82,7 @@ shopt -s nullglob
 for result_file in "$RESULTS_DIR"/rand-search-*.json; do
     config_name=$(basename "$result_file" .json | sed 's/^rand-search-//')
     avg_median_latency=$(jq -r '
-      [.. | .e2e_median? | numbers] as $v
+      [.. | .e2e_median? | select(. != null) | tonumber] as $v
       | if ($v | length) > 0
         then ($v | add / length)
         else empty
@@ -94,8 +96,12 @@ for result_file in "$RESULTS_DIR"/rand-search-*.json; do
         best_config_name=$config_name
     fi
 done
-cp "$CONFIGS_DIR/config-${best_config_name}.yml" "$CONFIGS_DIR/best-rsearch-config.yml"
-echo "Best configuration: $best_config_name"
-echo "Best configuration saved to $CONFIGS_DIR/best-rsearch-config.yml"
+if [ -z "$best_config_name" ]; then
+    echo "Error: Could not determine best configuration. No valid results found."
+else
+    cp "$CONFIGS_DIR/config-${best_config_name}.yml" "$CONFIGS_DIR/../best-rsearch-config.yml"
+    echo "Best configuration: $best_config_name"
+    echo "Best configuration saved to $CONFIGS_DIR/../best-rsearch-config.yml"
+fi
 
 echo "All experiments completed."
