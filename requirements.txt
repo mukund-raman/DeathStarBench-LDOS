@@ -1,0 +1,42 @@
+# DeathStarBench Python Dependencies
+# Last updated: 2026-01-15
+
+# Core Dapr dependencies
+dapr>=1.14.0
+dapr-ext-grpc>=1.14.0
+
+# Metrics and monitoring
+prometheus-client
+
+# Data processing and computation
+numpy
+pandas
+
+# HTTP and networking
+aiohttp
+requests
+
+# Message queuing
+pika
+
+# Configuration and data formats
+PyYAML
+
+# Image processing
+Pillow
+
+# Video processing
+opencv-python
+ffmpeg-python
+
+# Machine learning and AI
+timm
+transformers
+scikit-optimize
+
+# RPC framework
+thrift
+
+# Visualization
+matplotlib
+
