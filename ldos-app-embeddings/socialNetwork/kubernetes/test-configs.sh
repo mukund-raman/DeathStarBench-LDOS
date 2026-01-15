@@ -3,10 +3,13 @@
 # Given a config file, test the configs by pinning the microservices to the
 # nodes (using pin-microservices.sh) and running the experiment (using
 # k8s-snet-default-experiment.sh).
-# Usage: test-configs.sh <config-file> | --all [-n|--num-runs <count>]
+# Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>]
 # Example: test-configs.sh configs/config0.yml
+# Example: test-configs.sh configs/config0.yml configs/config1.yml
+# Example: test-configs.sh configs/config*.yml
 # Example: test-configs.sh --all
 # Example: test-configs.sh configs/config0.yml -n 5
+# Example: test-configs.sh configs/config0.yml configs/config1.yml --num-runs 3
 # Example: test-configs.sh --all --num-runs 3
 
 set -e
@@ -69,7 +72,7 @@ ssh-add "$SSH_KEY"
 
 # Parse arguments
 MODE=""
-CONFIG_FILE=""
+CONFIG_FILES=()
 while [[ $# -gt 0 ]]; do
     case $1 in
         --all)
@@ -82,13 +85,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -*)
             echo "Unknown option: $1"
-            echo "Usage: test-configs.sh <config-file> | --all [-n|--num-runs <count>]"
+            echo "Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>]"
             exit 1
             ;;
         *)
-            if [ -z "$CONFIG_FILE" ]; then
-                CONFIG_FILE="$1"
-            fi
+            CONFIG_FILES+=($1)
             shift
             ;;
     esac
@@ -110,21 +111,31 @@ if [ "$MODE" == "all" ]; then
             done
         fi
     done
-elif [ -f "$CONFIG_FILE" ]; then
-    for ((i=1; i<=NUM_RUNS; i++)); do
-        run_experiment "$CONFIG_FILE" "$i"
+elif [ ${#CONFIG_FILES[@]} -gt 0 ]; then
+    echo "Running ${#CONFIG_FILES[@]} config(s) ($NUM_RUNS run(s) each)..."
+    for config_file in "${CONFIG_FILES[@]}"; do
+        if [ -f "$config_file" ]; then
+            for ((i=1; i<=NUM_RUNS; i++)); do
+                run_experiment "$config_file" "$i"
+            done
+        else
+            echo "Warning: Config file not found: $config_file"
+        fi
     done
 
 # Describe script usage if no proper arguments are provided
 else
-    echo "Usage: test-configs.sh <config-file> | --all [-n|--num-runs <count>]"
+    echo "Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>]"
     echo ""
     echo "Options:"
     echo "  -n, --num-runs <count>    Run each config <count> times (default: 1)"
     echo ""
     echo "Examples:"
     echo "  test-configs.sh configs/config0.yml"
+    echo "  test-configs.sh configs/config0.yml configs/config1.yml"
+    echo "  test-configs.sh configs/config*.yml"
     echo "  test-configs.sh configs/config0.yml -n 5"
+    echo "  test-configs.sh configs/config0.yml configs/config1.yml --num-runs 3"
     echo "  test-configs.sh --all"
     echo "  test-configs.sh --all --num-runs 3"
     exit 1
