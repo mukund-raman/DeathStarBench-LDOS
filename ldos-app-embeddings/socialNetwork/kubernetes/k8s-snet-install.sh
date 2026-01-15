@@ -8,10 +8,10 @@ set -euo pipefail
 
 # Remote worker nodes
 WORKER_NODES=(
-  "c220g5-111219.wisc.cloudlab.us"  # node1
-  "c220g5-111226.wisc.cloudlab.us"  # node2
-  "c220g5-111205.wisc.cloudlab.us"  # node3
-  "c220g5-111228.wisc.cloudlab.us"  # node4
+  "clnode218.clemson.cloudlab.us"  # node1
+  "clnode198.clemson.cloudlab.us"  # node2
+  "clnode216.clemson.cloudlab.us"  # node3
+  "clnode199.clemson.cloudlab.us"  # node4
 )
 
 SSH_USER="mkraman"
@@ -110,7 +110,7 @@ reset_k8s_node() {
 install_dependencies_node() {
     local cmd="
         sudo apt-get update
-        sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg2
+        sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg2 build-essential libssl-dev zlib1g-dev luarocks
 
         # Install Docker
         sudo install -m 0755 -d /etc/apt/keyrings
@@ -153,9 +153,38 @@ EOF
         sudo apt-get install -y kubelet kubeadm kubectl ethtool
         sudo apt-mark hold kubelet kubeadm kubectl
         
+        # Load kernel modules required for Kubernetes
+        sudo modprobe overlay
+        sudo modprobe br_netfilter
+        
+        # Ensure modules load on boot
+        printf 'overlay\nbr_netfilter\n' | sudo tee /etc/modules-load.d/k8s.conf
+        
+        # Configure sysctl for Kubernetes networking
+        printf 'net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\n' | sudo tee /etc/sysctl.d/k8s.conf
+        sudo sysctl --system
+        
         # Disable swap
         sudo swapoff -a
         sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+        
+        # Install luasocket for wrk2 Lua scripts
+        sudo luarocks install luasocket
+        
+        # Create symbolic links for wrk2's embedded LuaJIT to find luasocket
+        # wrk2 looks in /usr/local/share/lua/5.1/ and /usr/local/lib/lua/5.1/
+        sudo mkdir -p /usr/local/share/lua/5.1
+        sudo mkdir -p /usr/local/lib/lua/5.1
+        
+        # Link socket.lua and socket directory
+        sudo ln -sf /usr/share/lua/5.1/socket.lua /usr/local/share/lua/5.1/socket.lua
+        sudo ln -sf /usr/share/lua/5.1/socket /usr/local/share/lua/5.1/socket
+        sudo ln -sf /usr/share/lua/5.1/ltn12.lua /usr/local/share/lua/5.1/ltn12.lua
+        sudo ln -sf /usr/share/lua/5.1/mime.lua /usr/local/share/lua/5.1/mime.lua
+        
+        # Link socket binaries
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/lua/5.1/socket /usr/local/lib/lua/5.1/socket
+        sudo ln -sf /usr/lib/x86_64-linux-gnu/lua/5.1/mime /usr/local/lib/lua/5.1/mime
     "
     if [ "$1" == "localhost" ]; then
         run_local "$cmd"

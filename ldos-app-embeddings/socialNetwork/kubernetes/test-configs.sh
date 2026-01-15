@@ -114,6 +114,7 @@ elif [ -f "$CONFIG_FILE" ]; then
     for ((i=1; i<=NUM_RUNS; i++)); do
         run_experiment "$CONFIG_FILE" "$i"
     done
+
 # Describe script usage if no proper arguments are provided
 else
     echo "Usage: test-configs.sh <config-file> | --all [-n|--num-runs <count>]"

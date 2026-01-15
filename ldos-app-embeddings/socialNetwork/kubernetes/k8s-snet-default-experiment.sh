@@ -18,10 +18,10 @@ SNET_WRK2_DIR="${SOCIAL_DIR}/wrk2"
 
 # Remote worker nodes (control node is the current local machine)
 WORKER_NODES=(
-  "c220g5-111219.wisc.cloudlab.us"  # node1
-  "c220g5-111226.wisc.cloudlab.us"  # node2
-  "c220g5-111205.wisc.cloudlab.us"  # node3
-  "c220g5-111228.wisc.cloudlab.us"  # node4
+  "clnode218.clemson.cloudlab.us"  # node1
+  "clnode198.clemson.cloudlab.us"  # node2
+  "clnode216.clemson.cloudlab.us"  # node3
+  "clnode199.clemson.cloudlab.us"  # node4
 )
 
 # Workload parameters (tuned for stability on CloudLab cluster)
