@@ -19,4 +19,4 @@ pip3 install matplotlib numpy
 
 echo "Visualizing results in $RESULTS_DIR..."
 python3 "$DIR/visualize_results.py" "$RESULTS_DIR"
-echo "Visual stored in $RESULTS_DIR-graph.png"
+echo "Visual stored in $RESULTS_DIR-dist-graph.png"

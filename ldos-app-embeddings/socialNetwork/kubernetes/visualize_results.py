@@ -57,11 +57,14 @@ if __name__ == "__main__":
                 # Placement ID from filename:
                 #   if rand search: rand-search-000.json -> P000
                 #   if bayes search: bayes-result-000.json -> P000
+                #   if results config: results-config<N>/run<M>.json -> P<N>-<M>
                 placement_id = "P"
                 if "rand-search" in filename:
                     placement_id += filename.replace("rand-search-", "")
                 elif "bayes-result" in filename:
                     placement_id += filename.replace("bayes-result-", "")
+                elif "run" in filename and "results-config" in results_dir:
+                    placement_id += results_dir[-1] + "-" + filename[3:]
                 else:
                     print(f"Error in parsing filename {filename}.")
                     sys.exit(1)
