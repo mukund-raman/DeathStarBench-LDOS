@@ -27,21 +27,50 @@ mkdir -p "$RESULTS_DIR"
 # Default number of runs
 NUM_RUNS=1
 
+
+# Function to get the next available versioned path
+get_next_version() {
+    local base_path=$1
+    local is_dir=$2 # 1 if directory, 0 if file
+    local extension=""
+    
+    if [ "$is_dir" -eq 0 ]; then
+        extension=".json"
+    fi
+    
+    # Check base version (run/version 1)
+    local candidate="${base_path}${extension}"
+    if [ ! -e "$candidate" ]; then
+        echo "$candidate"
+        return
+    fi
+    
+    # Start checking from version 2
+    local version=2
+    while true; do
+        candidate="${base_path}-${version}${extension}"
+        if [ ! -e "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+        ((version++))
+    done
+}
+
 run_experiment() {
     local config_file=$1
     local run_number=$2
+    local output_dest=$3 # File path if NUM_RUNS=1, Directory path if NUM_RUNS>1
     local config_name=$(basename "$config_file" .yml)
     local output_file
     
-    # Determine output file path based on number of runs
+    # Determine actual output file path
     if [ "$NUM_RUNS" -eq 1 ]; then
-        # Single run: no suffix, save directly in results/
-        output_file="$RESULTS_DIR/results-${config_name}.json"
+        output_file="$output_dest"
     else
-        # Multiple runs: create subdirectory and use run suffix
-        local config_results_dir="$RESULTS_DIR/results-${config_name}"
-        mkdir -p "$config_results_dir"
-        output_file="$config_results_dir/run${run_number}.json"
+        # Multiple runs: ensure directory exists and append run number
+        mkdir -p "$output_dest"
+        output_file="$output_dest/run${run_number}.json"
     fi
     
     echo "=================================================="
@@ -107,8 +136,11 @@ if [ "$MODE" == "all" ]; then
     echo "Running all configs in $CONFIGS_DIR ($NUM_RUNS run(s) each)..."
     for config_file in "$CONFIGS_DIR"/config*.yml; do
         if [ -f "$config_file" ]; then
+            config_name=$(basename "$config_file" .yml)
+            base_output_path="$RESULTS_DIR/results-${config_name}"
+            target_path=$(get_next_version "$base_output_path" $(( NUM_RUNS != 1 )))
             for ((i=1; i<=NUM_RUNS; i++)); do
-                run_experiment "$config_file" "$i"
+                run_experiment "$config_file" "$i" "$target_path"
             done
         fi
     done
@@ -116,8 +148,11 @@ elif [ ${#CONFIG_FILES[@]} -gt 0 ]; then
     echo "Running ${#CONFIG_FILES[@]} config(s) ($NUM_RUNS run(s) each)..."
     for config_file in "${CONFIG_FILES[@]}"; do
         if [ -f "$config_file" ]; then
+            config_name=$(basename "$config_file" .yml)
+            base_output_path="$RESULTS_DIR/results-${config_name}"
+            target_path=$(get_next_version "$base_output_path" $(( NUM_RUNS != 1 )))
             for ((i=1; i<=NUM_RUNS; i++)); do
-                run_experiment "$config_file" "$i"
+                run_experiment "$config_file" "$i" "$target_path"
             done
         else
             echo "Warning: Config file not found: $config_file"

@@ -29,7 +29,7 @@ WORKER_NODES=(
 WRK_THREADS=4
 WRK_CONNS=64
 WRK_DURATION="30s"
-WRK_RPS=100
+WRK_RPS=500
 RUNS_PER_WORKLOAD=3
 
 # Warm-up parameters (lower RPS, longer duration to stabilize services)

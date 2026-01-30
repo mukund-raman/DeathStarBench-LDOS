@@ -5492,6 +5492,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - ComposePostService        
         volumeMounts:
@@ -5532,6 +5537,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 6379
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         args:
         - /social-network-microservices/config/redis.conf        
         volumeMounts:
@@ -5569,6 +5579,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - HomeTimelineService        
         volumeMounts:
@@ -5658,6 +5673,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8081
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         env:
         - name: fqdn_suffix
           value: ".default.svc.cluster.local"
@@ -5720,6 +5740,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 11211
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: media-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -5758,6 +5783,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -5796,6 +5826,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - MediaService        
         volumeMounts:
@@ -5836,6 +5871,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 4000m
         env:
         - name: fqdn_suffix
           value: ".default.svc.cluster.local"
@@ -5919,6 +5959,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 11211
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: post-storage-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -5957,6 +6002,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -5995,6 +6045,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - PostStorageService        
         volumeMounts:
@@ -6035,6 +6090,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6073,6 +6133,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 6379
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         args:
         - /social-network-microservices/config/redis.conf        
         volumeMounts:
@@ -6110,6 +6175,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - SocialGraphService        
         volumeMounts:
@@ -6150,6 +6220,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - TextService        
         volumeMounts:
@@ -6190,6 +6265,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UniqueIdService        
         volumeMounts:
@@ -6230,6 +6310,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 11211
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: url-shorten-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -6268,6 +6353,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6306,6 +6396,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - UrlShortenService        
         volumeMounts:
@@ -6346,6 +6441,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 11211
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         volumeMounts:
         - name: user-memcached-config
           mountPath: /social-network-microservices/config/jaeger-config.yml
@@ -6384,6 +6484,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         command: 
         - UserMentionService        
         volumeMounts:
@@ -6424,6 +6529,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6462,6 +6572,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - UserService        
         volumeMounts:
@@ -6502,6 +6617,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 27017
+        resources:
+          requests:
+            cpu: 500m
+          limits:
+            cpu: 1000m
         args:
         - --config
         - /social-network-microservices/config/mongod.conf        
@@ -6540,6 +6660,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 6379
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         args:
         - /social-network-microservices/config/redis.conf        
         volumeMounts:
@@ -6577,6 +6702,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9090
+        resources:
+          requests:
+            cpu: 1000m
+          limits:
+            cpu: 2000m
         command: 
         - UserTimelineService        
         volumeMounts:
