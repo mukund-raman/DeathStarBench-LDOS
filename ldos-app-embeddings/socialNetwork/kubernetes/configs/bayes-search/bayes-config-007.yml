@@ -1,7 +1,7 @@
 node-placements:
-- node0:
-  - social-graph-mongodb
 - node1:
+  - social-graph-mongodb
+- node2:
   - jaeger
   - media-service
   - nginx-thrift
@@ -10,14 +10,14 @@ node-placements:
   - user-mongodb
   - user-service
   - user-timeline-service
-- node2:
+- node3:
   - compose-post-service
   - media-frontend
   - social-graph-service
   - text-service
   - user-memcached
   - user-timeline-redis
-- node3:
+- node4:
   - home-timeline-redis
   - home-timeline-service
   - media-memcached
@@ -28,6 +28,6 @@ node-placements:
   - url-shorten-memcached
   - url-shorten-mongodb
   - user-mention-service
-- node4:
+- node5:
   - social-graph-redis
   - user-timeline-mongodb

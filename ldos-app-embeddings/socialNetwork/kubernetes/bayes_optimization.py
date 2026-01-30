@@ -151,7 +151,7 @@ if __name__ == "__main__":
     print(f"Optimization loop: {args.n_calls} calls, {args.n_random_starts} random starts.")
 
     # Define search space: one dimension per service, value is node index
-    space = [Integer(0, num_nodes - 1) for _ in range(num_services)]
+    space = [Integer(1, num_nodes - 1) for _ in range(num_services)]
 
     # Run optimization with Expected Improvement (EI) acquisition function
     res = gp_minimize(

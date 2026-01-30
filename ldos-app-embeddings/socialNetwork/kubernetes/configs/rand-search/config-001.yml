@@ -1,5 +1,5 @@
 node-placements:
-- node0:
+- node1:
   - compose-post-service
   - home-timeline-redis
   - home-timeline-service
@@ -27,7 +27,7 @@ node-placements:
   - user-timeline-mongodb
   - user-timeline-redis
   - user-timeline-service
-- node1: []
 - node2: []
 - node3: []
 - node4: []
+- node5: []

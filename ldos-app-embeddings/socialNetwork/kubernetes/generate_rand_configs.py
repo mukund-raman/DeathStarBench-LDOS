@@ -32,7 +32,7 @@ def get_hamming_distance(p1, p2):
 
 # Generate a random placement vector (list of node indices)
 def generate_random_placement(num_services, num_nodes):
-    return [random.randint(0, num_nodes - 1) for _ in range(num_services)]
+    return [random.randint(1, num_nodes - 1) for _ in range(num_services)]
 
 # Select placements using Maximin strategy, i.e., select placements that are
 # farthest from any existing placement
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # Create two starting configs to guide the maximin sampling
     start_configs = [
         [i % num_nodes for i in range(num_services)], # Balanced
-        [0] * num_services # All on Node 0
+        [1] * num_services # All on Node 1
     ]
 
     # Generate random pool and perform maximin sampling

@@ -11,6 +11,7 @@
 # Example: test-configs.sh configs/config0.yml -n 5
 # Example: test-configs.sh configs/config0.yml configs/config1.yml --num-runs 3
 # Example: test-configs.sh --all --num-runs 3
+# Example: test-configs.sh configs/config[^0].yml --num-runs 3
 
 set -e
 

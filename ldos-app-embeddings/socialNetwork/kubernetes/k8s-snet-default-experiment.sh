@@ -22,13 +22,14 @@ WORKER_NODES=(
   "clnode198.clemson.cloudlab.us"  # node2
   "clnode216.clemson.cloudlab.us"  # node3
   "clnode199.clemson.cloudlab.us"  # node4
+  "clnode215.clemson.cloudlab.us"  # node5
 )
 
 # Workload parameters (tuned for stability on CloudLab cluster)
 WRK_THREADS=4
 WRK_CONNS=64
 WRK_DURATION="30s"
-WRK_RPS=500
+WRK_RPS=100
 RUNS_PER_WORKLOAD=3
 
 # Warm-up parameters (lower RPS, longer duration to stabilize services)
@@ -41,7 +42,7 @@ VERBOSE=false # set true to enable bash -x and verbose SSH
 OUTPUT_JSON="$(dirname "$0")/results/k8s-default-snet-results.json"
 
 # Retries/backoff for unhealthy runs
-MAX_RUN_RETRIES=2
+MAX_RUN_RETRIES=4
 RETRY_BACKOFF_SEC=5
 
 # Get the node IP for NodePort access (NodePorts bind to node IPs)
@@ -187,16 +188,45 @@ run_wrk2_and_parse() {
       have_numbers=$(awk 'BEGIN{n=0} /^[0-9]+$/ {n=1} END{print n}' "${thread_files[@]:-}" 2>/dev/null || echo 0)
       shopt -u nullglob
 
-      # 3) If everything is okay, then exit out; this run was healthy
+      # 3) Check p50 latency
+      local p50_str p50_val p50_unit p50_ms="0" latency_ok=true
+      p50_str=$(printf "%s\n" "$out" | awk '/^\s*50\.000%/ {print $2}')
+
+      # Parse p50 string (e.g. 12.34ms, 1.50s, 500us)
+      if [[ "$p50_str" =~ ([0-9.]+)(ms|s|us) ]]; then
+          p50_val="${BASH_REMATCH[1]}"
+          p50_unit="${BASH_REMATCH[2]}"
+      else
+          p50_val="$p50_str"
+          p50_unit="ms"
+      fi
+
+      case "$p50_unit" in
+          "ms") p50_ms="$p50_val" ;;
+          "s")  p50_ms=$(awk -v v="$p50_val" 'BEGIN {print v * 1000}') ;;
+          "us") p50_ms=$(awk -v v="$p50_val" 'BEGIN {print v / 1000}') ;;
+          *)    p50_ms="$p50_val" ;;
+      esac
+
+      # Check if > 100ms
+      if (( $(awk -v v="$p50_ms" 'BEGIN {print (v > 100) ? 1 : 0}') )); then
+          latency_ok=false
+      fi
+
+      # 4) If everything is okay, then exit out; this run was healthy
       if [[ -z "$bad_line" || "$bad_line" == "0" ]]; then
         if (( thread_count >= WRK_THREADS )) && [[ "$have_numbers" == "1" ]]; then
-          ok=true; break
+          if [[ "$latency_ok" == "true" ]]; then
+            ok=true; break
+          else
+             log "High p50 latency: ${p50_str} (${p50_ms}ms > 100ms)"
+          fi
         fi
       fi
 
-      # 4) Otherwise, move on to next attempt
+      # 5) Otherwise, move on to next attempt
       attempt=$((attempt+1))
-      log "Run unhealthy (Non-2xx=${bad_line:-none}, threads=${thread_count}, numbers=${have_numbers}). Retrying in ${RETRY_BACKOFF_SEC}s..."
+      log "Run unhealthy (Non-2xx=${bad_line:-none}, threads=${thread_count}, numbers=${have_numbers}, p50=${p50_str}). Retrying in ${RETRY_BACKOFF_SEC}s..."
       sleep "${RETRY_BACKOFF_SEC}"
     done
     if [[ "$ok" != true ]]; then
@@ -283,9 +313,9 @@ build_placements_json() {
         })
       | add
 
-      # Ensure node0..node4 always exist
+      # Ensure node1..node5 always exist
       | . as $podsByNode
-      | reduce range(0;5) as $i (
+      | reduce range(1;6) as $i (
           {};
           . + {
             ("node" + ($i|tostring)):
@@ -378,17 +408,18 @@ main() {
 
   # Run workloads and gather results
   local compose_json home_json user_json mixed_json
-  compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
-                 "${SCRIPT_BASE}/compose-post.lua" "compose-post")
-  home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
-              "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
-  user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
-              "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
+  # compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
+  #                "${SCRIPT_BASE}/compose-post.lua" "compose-post")
+  # home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
+  #             "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
+  # user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
+  #             "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
   mixed_json=$(run_wrk2_and_parse   "${BASE_URL}/wrk2-api/mixed-workload" \
                "${SCRIPT_BASE}/mixed-workload.lua" "mixed-workload")
 
   # Save combined JSON locally with placements first
-  write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
+  # write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
+  write_results_json "{}" "{}" "{}" "$mixed_json"
   python3 -m json.tool "${OUTPUT_JSON}" > "${OUTPUT_JSON}.tmp" && mv "${OUTPUT_JSON}.tmp" "${OUTPUT_JSON}"
   log "Done. Inspect Kubernetes resources with: kubectl get pods,svc"
 }

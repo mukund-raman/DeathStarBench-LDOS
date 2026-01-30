@@ -9,15 +9,27 @@ import argparse
 async def upload_follow(session, addr, user_0, user_1):
   payload = {'user_name': 'username_' + user_0,
              'followee_name': 'username_' + user_1}
-  async with session.post(addr + '/wrk2-api/user/follow', data=payload) as resp:
-    return await resp.text()
+  for attempt in range(3):
+    try:
+      async with session.post(addr + '/wrk2-api/user/follow', data=payload) as resp:
+        return await resp.text()
+    except Exception as e:
+      if attempt == 2:
+        raise e
+      await asyncio.sleep(1)
 
 
 async def upload_register(session, addr, user):
   payload = {'first_name': 'first_name_' + user, 'last_name': 'last_name_' + user,
              'username': 'username_' + user, 'password': 'password_' + user, 'user_id': user}
-  async with session.post(addr + '/wrk2-api/user/register', data=payload) as resp:
-    return await resp.text()
+  for attempt in range(3):
+    try:
+      async with session.post(addr + '/wrk2-api/user/register', data=payload) as resp:
+        return await resp.text()
+    except Exception as e:
+      if attempt == 2:
+        raise e
+      await asyncio.sleep(1)
 
 
 async def upload_compose(session, addr, user_id, num_users):
@@ -41,8 +53,14 @@ async def upload_compose(session, addr, user_id, num_users):
              'media_ids': '[' + ','.join(media_ids) + ']',
              'media_types': '[' + ','.join(media_types) + ']',
              'post_type': '0'}
-  async with session.post(addr + '/wrk2-api/post/compose', data=payload) as resp:
-    return await resp.text()
+  for attempt in range(3):
+    try:
+      async with session.post(addr + '/wrk2-api/post/compose', data=payload) as resp:
+        return await resp.text()
+    except Exception as e:
+      if attempt == 2:
+        raise e
+      await asyncio.sleep(1)
 
 
 def getNumNodes(file):
@@ -83,11 +101,13 @@ async def register(addr, nodes, limit=200):
       task = asyncio.ensure_future(upload_register(session, addr, str(i)))
       tasks.append(task)
       if i % limit == 0:
-        res = await asyncio.gather(*tasks)
+        res = await asyncio.gather(*tasks, return_exceptions=True)
+        res = [str(r) if isinstance(r, Exception) else r for r in res]
         all_results.extend(res)
         tasks = []
         print(i)
-    res = await asyncio.gather(*tasks)
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    res = [str(r) if isinstance(r, Exception) else r for r in res]
     all_results.extend(res)
     printResults(all_results)
 
@@ -108,11 +128,14 @@ async def follow(addr, edges, limit=200):
       tasks.append(task)
       idx += 1
       if idx % limit == 0:
-        res = await asyncio.gather(*tasks)
+        res = await asyncio.gather(*tasks, return_exceptions=True)
+        # Convert exceptions to strings for reporting
+        res = [str(r) if isinstance(r, Exception) else r for r in res]
         all_results.extend(res)
         tasks = []
         print(idx)
-    res = await asyncio.gather(*tasks)
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    res = [str(r) if isinstance(r, Exception) else r for r in res]
     all_results.extend(res)
     printResults(all_results)
 
@@ -130,11 +153,13 @@ async def compose(addr, nodes, limit=200):
         tasks.append(task)
         idx += 1
         if idx % limit == 0:
-          res = await asyncio.gather(*tasks)
+          res = await asyncio.gather(*tasks, return_exceptions=True)
+          res = [str(r) if isinstance(r, Exception) else r for r in res]
           all_results.extend(res)
           tasks = []
           print(idx)
-    res = await asyncio.gather(*tasks)
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    res = [str(r) if isinstance(r, Exception) else r for r in res]
     all_results.extend(res)
     printResults(all_results)
 

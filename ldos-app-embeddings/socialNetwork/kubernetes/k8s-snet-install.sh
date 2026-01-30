@@ -12,6 +12,7 @@ WORKER_NODES=(
   "clnode198.clemson.cloudlab.us"  # node2
   "clnode216.clemson.cloudlab.us"  # node3
   "clnode199.clemson.cloudlab.us"  # node4
+  "clnode215.clemson.cloudlab.us"  # node5
 )
 
 SSH_USER="mkraman"
@@ -294,6 +295,10 @@ fi
 
 # 3. Reset Kubernetes State
 if [ "$DO_RESET_K8S" = true ]; then
+    log "Ensuring ports are free..."
+    # Ports: 6443, 10259, 10257, 2379, 2380
+    run_local "sudo fuser -k 6443/tcp 10259/tcp 10257/tcp 2379/tcp 2380/tcp || true"
+
     log "Resetting Kubernetes state on all nodes..."
     reset_k8s_node "localhost"
     for node in "${WORKER_NODES[@]}"; do
@@ -311,13 +316,6 @@ if [ "$DO_CLUSTER" = true ]; then
     mkdir -p $HOME/.kube
     sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
     sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-    # Untaint control plane to allow scheduling pods on it
-    log "Untainting control plane to allow scheduling..."
-    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- || true"
-    run_local "kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true"
-    run_local "kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true"
-    run_local "kubectl taint nodes --all node-role.kubernetes.io/master- || true"
 
     # Install Flannel
     log "Installing Flannel CNI..."

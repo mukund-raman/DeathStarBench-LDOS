@@ -1,10 +1,10 @@
 node-placements:
-- node0:
+- node1:
   - jaeger
   - media-mongodb
   - unique-id-service
   - user-mongodb
-- node1:
+- node2:
   - compose-post-service
   - media-frontend
   - media-memcached
@@ -13,7 +13,7 @@ node-placements:
   - social-graph-redis
   - user-timeline-mongodb
   - user-timeline-service
-- node2:
+- node3:
   - social-graph-service
   - text-service
   - url-shorten-memcached
@@ -21,12 +21,12 @@ node-placements:
   - url-shorten-service
   - user-mention-service
   - user-service
-- node3:
+- node4:
   - home-timeline-redis
   - post-storage-memcached
   - user-memcached
   - user-timeline-redis
-- node4:
+- node5:
   - home-timeline-service
   - media-service
   - post-storage-mongodb

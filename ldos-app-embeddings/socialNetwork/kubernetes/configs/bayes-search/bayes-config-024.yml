@@ -1,5 +1,5 @@
 node-placements:
-- node0:
+- node1:
   - compose-post-service
   - jaeger
   - media-frontend
@@ -13,13 +13,13 @@ node-placements:
   - user-service
   - user-timeline-mongodb
   - user-timeline-service
-- node1:
+- node2:
   - post-storage-memcached
   - url-shorten-memcached
-- node2: []
-- node3:
-  - media-memcached
+- node3: []
 - node4:
+  - media-memcached
+- node5:
   - home-timeline-redis
   - home-timeline-service
   - media-service

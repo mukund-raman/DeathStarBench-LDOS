@@ -1,5 +1,5 @@
 node-placements:
-- node0:
+- node1:
   - home-timeline-redis
   - media-memcached
   - media-mongodb
@@ -16,13 +16,13 @@ node-placements:
   - user-timeline-mongodb
   - user-timeline-redis
   - user-timeline-service
-- node1:
-  - social-graph-redis
 - node2:
+  - social-graph-redis
+- node3:
   - home-timeline-service
   - nginx-thrift
-- node3: []
-- node4:
+- node4: []
+- node5:
   - compose-post-service
   - jaeger
   - media-frontend

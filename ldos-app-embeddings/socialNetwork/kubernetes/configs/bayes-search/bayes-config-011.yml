@@ -1,5 +1,5 @@
 node-placements:
-- node0:
+- node1:
   - jaeger
   - post-storage-mongodb
   - post-storage-service
@@ -9,11 +9,11 @@ node-placements:
   - url-shorten-mongodb
   - url-shorten-service
   - user-mongodb
-- node1:
+- node2:
   - social-graph-redis
-- node2: []
 - node3: []
-- node4:
+- node4: []
+- node5:
   - compose-post-service
   - home-timeline-redis
   - home-timeline-service
