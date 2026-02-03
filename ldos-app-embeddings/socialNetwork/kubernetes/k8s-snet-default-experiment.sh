@@ -14,7 +14,7 @@ SSH_USER="mkraman"
 ROOT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 SOCIAL_DIR="${ROOT_DIR}/socialNetwork"
 MAIN_WRK2_DIR="${ROOT_DIR}/wrk2"
-SNET_WRK2_DIR="${SOCIAL_DIR}/wrk2"
+SCRIPT_BASE="${SOCIAL_DIR}/wrk2/scripts/social-network"
 
 # Remote worker nodes (control node is the current local machine)
 WORKER_NODES=(
@@ -25,14 +25,15 @@ WORKER_NODES=(
   "clnode215.clemson.cloudlab.us"  # node5
 )
 
-# Workload parameters (tuned for stability on CloudLab cluster)
+# Workload parameters
 WRK_THREADS=4
 WRK_CONNS=64
 WRK_DURATION="30s"
 WRK_RPS=500
 RUNS_PER_WORKLOAD=3
+MIXED_RATIO="0.2,0.2,0.6" # read_home, read_user, compose_post
 
-# Warm-up parameters (lower RPS, longer duration to stabilize services)
+# Warm-up parameters
 WARMUP_DURATION="30s"
 WARMUP_RPS=200
 
@@ -389,6 +390,20 @@ main() {
   local placements_json
   placements_json=$(build_placements_json)
   write_placements_json "$placements_json"
+  log "Built placements JSON and wrote to $OUTPUT_JSON"
+
+  # Update mixed-workload.lua to use the ratio defined in MIXED_RATIO.
+  # Use sed to replace the hardcoded ratios with the configured ones.
+  IFS=',' read -r r1 r2 r3 <<< "${MIXED_RATIO}"
+  local lua_file="${SCRIPT_BASE}/mixed-workload.lua"
+  if [[ -f "$lua_file" ]]; then
+      sed -i "s/local read_home_timeline_ratio[[:space:]]*=[[:space:]]*[0-9.]*/local read_home_timeline_ratio = ${r1}/" "$lua_file"
+      sed -i "s/local read_user_timeline_ratio[[:space:]]*=[[:space:]]*[0-9.]*/local read_user_timeline_ratio = ${r2}/" "$lua_file"
+      sed -i "s/local compose_post_ratio[[:space:]]*=[[:space:]]*[0-9.]*/local compose_post_ratio       = ${r3}/" "$lua_file"
+      log "Updated mixed-workload.lua with ratios: Home=${r1}, User=${r2}, Compose=${r3}"
+  else
+      log "Warning: Could not find mixed-workload.lua at $lua_file"
+  fi
 
   # Start the SSH agent
   # eval "$(ssh-agent -s)"
@@ -398,28 +413,27 @@ main() {
   wait_for_frontend_ready
   init_social_graph
   build_wrk2
+  log "Built wrk2 scripts"
 
   # Define variables for connections/running workload generation scripts
   # nginx-thrift Service exposes port 8080 on NodePort 32000
   log "Using node IP ${NODE_IP} for NodePort access"
   local BASE_URL="http://${NODE_IP}:32000"
-  local SCRIPT_BASE
-  SCRIPT_BASE="${SNET_WRK2_DIR}/scripts/social-network"
 
   # Run workloads and gather results
   local compose_json home_json user_json mixed_json
-  # compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
-  #                "${SCRIPT_BASE}/compose-post.lua" "compose-post")
-  # home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
-  #             "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
-  # user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
-  #             "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
+  compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
+                 "${SCRIPT_BASE}/compose-post.lua" "compose-post")
+  home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
+              "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
+  user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
+              "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
   mixed_json=$(run_wrk2_and_parse   "${BASE_URL}/wrk2-api/mixed-workload" \
                "${SCRIPT_BASE}/mixed-workload.lua" "mixed-workload")
 
   # Save combined JSON locally with placements first
-  # write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
-  write_results_json "{}" "{}" "{}" "$mixed_json"
+  write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
+  # write_results_json "{}" "{}" "{}" "$mixed_json"
   python3 -m json.tool "${OUTPUT_JSON}" > "${OUTPUT_JSON}.tmp" && mv "${OUTPUT_JSON}.tmp" "${OUTPUT_JSON}"
   log "Done. Inspect Kubernetes resources with: kubectl get pods,svc"
 }
