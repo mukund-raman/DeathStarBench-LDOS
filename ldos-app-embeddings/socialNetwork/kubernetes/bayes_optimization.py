@@ -41,51 +41,85 @@ def save_config(placement_vector, filename):
     with open(filename, 'w') as f:
         yaml.dump(data, f, default_flow_style=False)
 
-# Run the experiment for a given config file.
-def run_experiment(config_file, result_file):
-    # 1. Pin microservices
-    pin_script = os.path.join(context.scripts_dir, "pin-microservices.sh")
-    exp_script = os.path.join(context.scripts_dir, "k8s-snet-default-experiment.sh")
-    print(f"[{context.iteration}] Pinning services with {config_file}...")
-    subprocess.check_call([pin_script, config_file])
+# Save the history to a JSON file atomically to prevent corruption.
+def save_history():
+    history_path = os.path.join(context.config_dir, "bayes-history.json")
+    temp_path = history_path + ".tmp"
+    with open(temp_path, 'w') as f:
+        json.dump(context.history, f, indent=2)
+    os.replace(temp_path, history_path)
 
-    # 2. Wait for stabilization
-    print(f"[{context.iteration}] Waiting 30s for stabilization...")
-    time.sleep(30)
+# Run the experiment for a given config file using test-configs.sh
+def run_experiment(config_file, result_parent_dir):
+    script = os.path.join(context.scripts_dir, "test-configs.sh")
+    
+    # Ensure expected output directory is clean to avoid versioning complications
+    config_name = os.path.splitext(os.path.basename(config_file))[0]
+    expected_result_dir = os.path.join(result_parent_dir, f"results-{config_name}")
+    if os.path.exists(expected_result_dir):
+        import shutil
+        shutil.rmtree(expected_result_dir)
 
-    # 3. Run benchmark
-    print(f"[{context.iteration}] Running benchmark, output to {result_file}...")
-    subprocess.check_call([exp_script, result_file])
+    print(f"[{context.iteration}] Running experiment (3 runs) for {config_file}...")
+    subprocess.check_call([
+        script, 
+        config_file, 
+        "--num-runs", "3", 
+        "--output", result_parent_dir
+    ])
+    return expected_result_dir
 
-# Parses result file and returns the objective value (avg median latency).
-def parse_results(result_file):
-    if not os.path.exists(result_file):
-        print(f"Error: Result file {result_file} not found.")
+# Parses result directory and returns the objective value (avg P99 latency).
+def parse_results(result_dir):
+    if not os.path.exists(result_dir):
+        print(f"Error: Result directory {result_dir} not found.")
         return float('inf')
+    
+    # Iterate over run*.json files
+    p99_latencies = []
     try:
-        with open(result_file, 'r') as f:
-            data = json.load(f)
-        
-        # Extract e2e_median field from all workloads
-        latencies = []
-        for workload, runs in data.items():
-            if not isinstance(runs, list):
-                continue
-            for run in runs:
-                val = run.get('e2e_median')
-                if val:
+        files = [f for f in os.listdir(result_dir) if f.startswith("run") and f.endswith(".json")]
+        if not files:
+            print(f"Warning: No result files found in {result_dir}")
+            return float('inf')
+        for filename in files:
+            filepath = os.path.join(result_dir, filename)
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            # Extract p99 from mixed-workload
+            workload_data = data.get("mixed-workload", [])
+            if isinstance(workload_data, dict):
+                 workload_data = [workload_data]
+            for entry in workload_data:
+                val_str = entry.get("p99")
+                if val_str:
                     try:
-                        latencies.append(float(val))
+                        # Convert units
+                        val = float('inf')
+                        if isinstance(val_str, (int, float)):
+                            val = float(val_str)
+                        elif val_str.endswith("ms"):
+                            val = float(val_str.replace("ms", ""))
+                        elif val_str.endswith("us"):
+                            val = float(val_str.replace("us", "")) / 1000.0
+                        elif val_str.endswith("s"):
+                            val = float(val_str.replace("s", "")) * 1000.0
+                        else:
+                            val = float(val_str)
+                        
+                        p99_latencies.append(val)
                     except ValueError:
                         pass
-        if not latencies:
-            print("Warning: No valid latencies found in results.")
+        
+        if not p99_latencies:
+            print("Warning: No valid P99 latencies found.")
             return float('inf')
         
-        # Return average of latencies
-        avg_median_latency = sum(latencies) / len(latencies)
-        print(f"[{context.iteration}] Parsed Avg Median Latency: {avg_median_latency}")
-        return avg_median_latency
+        # Calculate average P99 end-to-end latency
+        avg_p99 = sum(p99_latencies) / len(p99_latencies)
+        print(f"[{context.iteration}] Parsed Avg P99 Latency: {avg_p99:.2f} ms")
+        return avg_p99
     except Exception as e:
         print(f"Error parsing results: {e}")
         return float('inf')
@@ -94,33 +128,38 @@ def parse_results(result_file):
 def objective_function(x):
     """
     x: list of node indices (integers).
-    Returns: Average Median End-to-End Latency (float).
+    Returns: Average P99 End-to-End Latency (float).
     """
     context.iteration += 1
     
     # Determine file paths
     config_filename = f"bayes-config-{context.iteration:03d}.yml"
     config_path = os.path.join(context.config_dir, config_filename)
-    result_filename = f"bayes-result-{context.iteration:03d}.json"
-    result_path = os.path.join(context.result_dir, result_filename)
 
-    # Save config and run experiment
+    # Save config
     save_config(x, config_path)
+    
+    # Run experiment via script
+    score = float('inf')
+    actual_result_dir = ""
     try:
-        run_experiment(config_path, result_path)
+        # run_experiment now returns the directory it used
+        actual_result_dir = run_experiment(config_path, context.result_dir)
+        score = parse_results(actual_result_dir)
     except subprocess.CalledProcessError as e:
         print(f"Experiment failed: {e}")
-        return float('inf')
 
     # Parse results, store history, and return score
-    score = parse_results(result_path)
     context.history.append({
         "iteration": context.iteration,
         "config": [int(val) for val in x],
         "score": float(score),
         "config_file": config_path,
-        "result_file": result_path
+        "result_path": actual_result_dir 
     })
+    
+    # Save history incrementally
+    save_history()
     return score
 
 if __name__ == "__main__":
@@ -173,7 +212,6 @@ if __name__ == "__main__":
     print(f"Best configuration saved to {best_config_path}")
 
     # Save full optimization history
+    save_history()
     history_path = os.path.join(context.config_dir, "bayes-history.json")
-    with open(history_path, 'w') as f:
-        json.dump(context.history, f, indent=2)
     print(f"History saved to {history_path}")

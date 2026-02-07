@@ -2,8 +2,8 @@
 
 # Wrapper script to run Bayesian Optimization for node placement using the
 # Python script. This approach uses Gaussian Process-based Bayesian
-# Optimization with scikit-optimize to minimize the average median end-to-end
-# latency.
+# Optimization with scikit-optimize to minimize the average P99 end-to-end
+# latency of mixed-workload.
 
 # Usage: bayes-search-experiment.sh <num-calls> <num-random-starts>
 # Example: bayes-search-experiment.sh 30 10

@@ -189,28 +189,28 @@ run_wrk2_and_parse() {
       have_numbers=$(awk 'BEGIN{n=0} /^[0-9]+$/ {n=1} END{print n}' "${thread_files[@]:-}" 2>/dev/null || echo 0)
       shopt -u nullglob
 
-      # 3) Check p50 latency
-      local p50_str p50_val p50_unit p50_ms="0" latency_ok=true
-      p50_str=$(printf "%s\n" "$out" | awk '/^\s*50\.000%/ {print $2}')
+      # 3) Check p99 latency
+      local p99_str p99_val p99_unit p99_ms="0" latency_ok=true
+      p99_str=$(printf "%s\n" "$out" | awk '/^\s*99\.000%/ {print $2}')
 
-      # Parse p50 string (e.g. 12.34ms, 1.50s, 500us)
-      if [[ "$p50_str" =~ ([0-9.]+)(ms|s|us) ]]; then
-          p50_val="${BASH_REMATCH[1]}"
-          p50_unit="${BASH_REMATCH[2]}"
+      # Parse p99 string (e.g. 12.34ms, 1.50s, 500us)
+      if [[ "$p99_str" =~ ([0-9.]+)(ms|s|us) ]]; then
+          p99_val="${BASH_REMATCH[1]}"
+          p99_unit="${BASH_REMATCH[2]}"
       else
-          p50_val="$p50_str"
-          p50_unit="ms"
+          p99_val="$p99_str"
+          p99_unit="ms"
       fi
 
-      case "$p50_unit" in
-          "ms") p50_ms="$p50_val" ;;
-          "s")  p50_ms=$(awk -v v="$p50_val" 'BEGIN {print v * 1000}') ;;
-          "us") p50_ms=$(awk -v v="$p50_val" 'BEGIN {print v / 1000}') ;;
-          *)    p50_ms="$p50_val" ;;
+      case "$p99_unit" in
+          "ms") p99_ms="$p99_val" ;;
+          "s")  p99_ms=$(awk -v v="$p99_val" 'BEGIN {print v * 1000}') ;;
+          "us") p99_ms=$(awk -v v="$p99_val" 'BEGIN {print v / 1000}') ;;
+          *)    p99_ms="$p99_val" ;;
       esac
 
       # Check if > 100ms
-      if (( $(awk -v v="$p50_ms" 'BEGIN {print (v > 100) ? 1 : 0}') )); then
+      if (( $(awk -v v="$p99_ms" 'BEGIN {print (v > 100) ? 1 : 0}') )); then
           latency_ok=false
       fi
 
@@ -220,14 +220,14 @@ run_wrk2_and_parse() {
           if [[ "$latency_ok" == "true" ]]; then
             ok=true; break
           else
-             log "High p50 latency: ${p50_str} (${p50_ms}ms > 100ms)"
+             log "High p99 latency: ${p99_str} (${p99_ms}ms > 100ms)"
           fi
         fi
       fi
 
       # 5) Otherwise, move on to next attempt
       attempt=$((attempt+1))
-      log "Run unhealthy (Non-2xx=${bad_line:-none}, threads=${thread_count}, numbers=${have_numbers}, p50=${p50_str}). Retrying in ${RETRY_BACKOFF_SEC}s..."
+      log "Run unhealthy (Non-2xx=${bad_line:-none}, threads=${thread_count}, numbers=${have_numbers}, p99=${p99_str}). Retrying in ${RETRY_BACKOFF_SEC}s..."
       sleep "${RETRY_BACKOFF_SEC}"
     done
     if [[ "$ok" != true ]]; then

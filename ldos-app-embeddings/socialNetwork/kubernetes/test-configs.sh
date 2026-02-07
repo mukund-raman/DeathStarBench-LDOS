@@ -93,6 +93,9 @@ run_experiment() {
     echo "Waiting for all deployments to be ready..."
     kubectl get deployments -o name | xargs -I {} kubectl rollout status {} --timeout=300s
 
+    echo "Waiting 60s for stabilization..."
+    sleep 60
+
     echo "Running experiment..."
     "$DIR/k8s-snet-default-experiment.sh" "$output_file"
     
@@ -120,9 +123,14 @@ while [[ $# -gt 0 ]]; do
             NUM_RUNS="$2"
             shift 2
             ;;
+        -o|--output)
+            OUTPUT_DIR="$2"
+            mkdir -p "$OUTPUT_DIR"
+            shift 2
+            ;;
         -*)
             echo "Unknown option: $1"
-            echo "Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>]"
+            echo "Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>] [-o|--output <dir>]"
             exit 1
             ;;
         *)
@@ -138,40 +146,45 @@ if ! [[ "$NUM_RUNS" =~ ^[0-9]+$ ]] || [ "$NUM_RUNS" -lt 1 ]; then
     exit 1
 fi
 
+# Function to process a single config file
+process_config() {
+    local config_file=$1
+    if [ -f "$config_file" ]; then
+        # Use OUTPUT_DIR if set, otherwise default RESULTS_DIR
+        local config_name=$(basename "$config_file" .yml)
+        local text_output_dir="${OUTPUT_DIR:-$RESULTS_DIR}"
+        local base_output_path="$text_output_dir/results-${config_name}"
+        
+        # Determine target path; if NUM_RUNS > 1, force it to be a directory
+        local target_path=$(get_next_version "$base_output_path" $(( NUM_RUNS != 1 )))
+        for ((i=1; i<=NUM_RUNS; i++)); do
+            run_experiment "$config_file" "$i" "$target_path"
+        done
+    else
+        echo "Warning: Config file not found: $config_file"
+    fi
+}
+
 # Run experiments
 if [ "$MODE" == "all" ]; then
     echo "Running all configs in $CONFIGS_DIR ($NUM_RUNS run(s) each)..."
-    for config_file in "$CONFIGS_DIR"/config*.yml; do
-        if [ -f "$config_file" ]; then
-            config_name=$(basename "$config_file" .yml)
-            base_output_path="$RESULTS_DIR/results-${config_name}"
-            target_path=$(get_next_version "$base_output_path" $(( NUM_RUNS != 1 )))
-            for ((i=1; i<=NUM_RUNS; i++)); do
-                run_experiment "$config_file" "$i" "$target_path"
-            done
-        fi
+    shopt -s nullglob
+    for config_file in "$CONFIGS_DIR"/*.yml; do
+        process_config "$config_file"
     done
+    shopt -u nullglob
 elif [ ${#CONFIG_FILES[@]} -gt 0 ]; then
     echo "Running ${#CONFIG_FILES[@]} config(s) ($NUM_RUNS run(s) each)..."
     for config_file in "${CONFIG_FILES[@]}"; do
-        if [ -f "$config_file" ]; then
-            config_name=$(basename "$config_file" .yml)
-            base_output_path="$RESULTS_DIR/results-${config_name}"
-            target_path=$(get_next_version "$base_output_path" $(( NUM_RUNS != 1 )))
-            for ((i=1; i<=NUM_RUNS; i++)); do
-                run_experiment "$config_file" "$i" "$target_path"
-            done
-        else
-            echo "Warning: Config file not found: $config_file"
-        fi
+        process_config "$config_file"
     done
-
-# Describe script usage if no proper arguments are provided
 else
-    echo "Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>]"
+# Describe script usage if no proper arguments are provided
+    echo "Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>] [-o|--output <dir>]"
     echo ""
     echo "Options:"
     echo "  -n, --num-runs <count>    Run each config <count> times (default: 1)"
+    echo "  -o, --output <dir>        Specify the output directory"
     echo ""
     echo "Examples:"
     echo "  test-configs.sh configs/config0.yml"

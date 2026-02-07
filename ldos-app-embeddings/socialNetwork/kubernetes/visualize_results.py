@@ -38,21 +38,28 @@ if __name__ == "__main__":
                     total_pods += count
                     all_nodes.add(node)
                 
-                # Extract average median latency by averaging the e2e_median
-                # across the runs (if available) and across the workloads
-                workloads = ["compose-post", "read-home-timelines", "read-user-timelines", "mixed-workload"]
-                total_latency = 0
-                count = 0
-                for workload in workloads:
-                    runs = data.get(workload, [])
-                    for run in runs:
-                        try:
-                            lat = float(run.get("e2e_median", 0))
-                            total_latency += lat
-                            count += 1
-                        except (ValueError, TypeError):
-                            pass
-                avg_median_latency = (total_latency / count) if count > 0 else 0
+                # Extract P99 latency (ms) for mixed-workload
+                target_workload = "mixed-workload"
+                run = data.get(target_workload, [])
+                if not run:
+                    print(f"Warning: No mixed-workload data in {filename}")
+                    continue
+                p99_str = run.get("p99")
+                p99_latency = 0.0
+                if p99_str:
+                    try:
+                        if isinstance(p99_str, (int, float)):
+                            p99_latency = float(p99_str)
+                        elif p99_str.endswith("ms"):
+                            p99_latency = float(p99_str.replace("ms", ""))
+                        elif p99_str.endswith("us"):
+                            p99_latency = float(p99_str.replace("us", "")) / 1000.0
+                        elif p99_str.endswith("s"):
+                            p99_latency = float(p99_str.replace("s", "")) * 1000.0
+                        else:
+                            p99_latency = float(p99_str)
+                    except ValueError:
+                         print(f"Warning: Could not parse p99 '{p99_str}' in {filename}")
                 
                 # Placement ID from filename:
                 #   if rand search: rand-search-000.json -> P000
@@ -73,7 +80,7 @@ if __name__ == "__main__":
                 # Add data point to list 
                 data_points.append({
                     "id": placement_id,
-                    "latency": avg_median_latency,
+                    "latency": p99_latency,
                     "node_counts": node_counts,
                     "total_pods": total_pods
                 })
@@ -86,33 +93,46 @@ if __name__ == "__main__":
     # Filter outliers and use valid points for plotting
     valid_points = []
     outliers = []
+    # threshold 200ms
+    OUTLIER_THRESHOLD_MS = 200
     for dp in data_points:
-        if dp["latency"] > OUTLIER_THRESHOLD_US:
+        if dp["latency"] > OUTLIER_THRESHOLD_MS:
             outliers.append(dp)
         else:
             valid_points.append(dp)
+    
+    # Check if we have any valid points
+    if not valid_points and not outliers:
+         print("No data found.")
+         sys.exit(0)
+    
+    # If no valid points but we have outliers, just plot everything or warn
     if not valid_points:
-        print("No valid data found (all points were outliers or no data).")
-        sys.exit(0)
+        print(f"All data points exceeded the threshold ({OUTLIER_THRESHOLD_MS}ms). Plotting all...")
+        valid_points = outliers
+        outliers = []
+        
     data_points = valid_points
 
     # Prepare for plotting
     ids = [d["id"] for d in data_points]
+    latencies = [d["latency"] for d in data_points]
     unique_nodes = sorted(list(all_nodes))
     
-    # Use a qualitative colormap to distinguish nodes clearly
+    # Use a qualitative colormap
     colors_map = plt.get_cmap('tab10') 
     node_to_color = {node: colors_map(i % 10) for i, node in enumerate(unique_nodes)}
 
-    # Set figure size and initialize bottom array for stacking bars
+    # Set figure size
     plt.figure(figsize=(12, 6))
     bottoms = np.zeros(len(data_points))
     
-    # Plot each node's contribution as a segment of the bar
+    # Plot each node's contribution
     for node in unique_nodes:
         segment_heights = []
         for d in data_points:
-            # Calculate height proportional to microservice count on this node
+             # Scale the height of the bar segment by the node's share of pods
+             # The total height of the bar will be the latency
             if d["total_pods"] > 0:
                 fraction = d["node_counts"].get(node, 0) / d["total_pods"]
                 height = d["latency"] * fraction
@@ -124,19 +144,18 @@ if __name__ == "__main__":
     
     # Add labels and title
     plt.xlabel('Placement Configuration')
-    plt.ylabel('Avg Median End-to-End Latency (μs)')
-    plt.title('Performance by Placement and Microservice Distribution')
+    plt.ylabel('Avg P99 Latency (ms)')
+    plt.title('P99 Latency for Mixed Workload by Placement')
     plt.xticks(rotation=45)
     plt.legend(title="Node Distribution", bbox_to_anchor=(1.05, 1), loc='upper left')
     
-    # Add outlier text to the plot
+    # Add outlier text
     if outliers:
-        outlier_text = f"Placement Outliers (> {int(OUTLIER_THRESHOLD_US/1000)}ms):\n"
-        for dp in outliers[:3]:
-            outlier_text += f"{dp['id']}: {dp['latency']/1000:.2f} ms\n"
-        if len(outliers) > 3:
-            remaining_ids = [dp['id'] for dp in outliers[3:]]
-            outlier_text += "Others: " + ", ".join(remaining_ids)
+        outlier_text = f"Outliers (> {OUTLIER_THRESHOLD_MS}ms):\n"
+        for dp in outliers[:5]:
+            outlier_text += f"{dp['id']}: {dp['latency']:.2f} ms\n"
+        if len(outliers) > 5:
+             outlier_text += f"... + {len(outliers)-5} more"
         plt.text(1.05, 0.5, outlier_text, transform=plt.gca().transAxes, 
                  verticalalignment='top', fontsize=9, 
                  bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.9, edgecolor='gray'))
