@@ -82,10 +82,17 @@ run_experiment() {
     echo "Output: $output_file"
     echo "=================================================="
     
-    # Pin microservices, wait for stabilization, and run experiment
+    # Pin microservices first
     "$DIR/pin-microservices.sh" "$config_file"
-    echo "Waiting 30s for pods to restart and stabilize..."
-    sleep 30
+
+    # Restart all deployments to ensure a clean state (flushes ephemeral storage/cache)
+    echo "Restarting all deployments to clear state..."
+    kubectl get deployments -o name | xargs -I {} kubectl rollout restart {}
+
+    # Wait for all deployments to be ready
+    echo "Waiting for all deployments to be ready..."
+    kubectl get deployments -o name | xargs -I {} kubectl rollout status {} --timeout=300s
+
     echo "Running experiment..."
     "$DIR/k8s-snet-default-experiment.sh" "$output_file"
     
