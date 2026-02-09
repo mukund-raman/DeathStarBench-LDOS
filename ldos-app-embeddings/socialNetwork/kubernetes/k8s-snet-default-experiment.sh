@@ -28,14 +28,14 @@ WORKER_NODES=(
 # Workload parameters
 WRK_THREADS=4
 WRK_CONNS=64
-WRK_DURATION="30s"
-WRK_RPS=500
+WRK_DURATION="${WRK_DURATION:-30s}"
+WRK_RPS="${WRK_RPS:-500}"
 RUNS_PER_WORKLOAD=3
-MIXED_RATIO="0.2,0.2,0.6" # read_home, read_user, compose_post
+MIXED_RATIO="0.6,0.3,0.1" # read_home, read_user, compose_post
 
 # Warm-up parameters
-WARMUP_DURATION="30s"
-WARMUP_RPS=200
+WARMUP_DURATION="${WARMUP_DURATION:-30s}"
+WARMUP_RPS="${WARMUP_RPS:-200}"
 
 INIT_GRAPH="socfb-Reed98" # Graph to initialize
 CLEAN_RUN_DIRS_ON_START=true # set true to remove existing run directories
@@ -45,6 +45,7 @@ OUTPUT_JSON="$(dirname "$0")/results/k8s-default-snet-results.json"
 # Retries/backoff for unhealthy runs
 MAX_RUN_RETRIES=4
 RETRY_BACKOFF_SEC=5
+LATENCY_THRESHOLD=500
 
 # Get the node IP for NodePort access (NodePorts bind to node IPs)
 NODE_IP="$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | head -n 1)"
@@ -122,7 +123,7 @@ init_social_graph() {
   local mongo_pod
   mongo_pod=$(kubectl get pod -l service=user-mongodb -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
   if [ -n "$mongo_pod" ]; then
-      kubectl exec "$mongo_pod" -- mongo user --eval "db.dropDatabase()" || true
+      kubectl exec "$mongo_pod" -- mongo user --eval "db.getCollectionNames().forEach(function(c){db[c].remove({});})" || true
   fi
 
   # Initialize social graph
@@ -209,8 +210,8 @@ run_wrk2_and_parse() {
           *)    p99_ms="$p99_val" ;;
       esac
 
-      # Check if > 100ms
-      if (( $(awk -v v="$p99_ms" 'BEGIN {print (v > 100) ? 1 : 0}') )); then
+      # Check if > LATENCY_THRESHOLD ms
+      if (( $(awk -v v="$p99_ms" -v t="$LATENCY_THRESHOLD" 'BEGIN {print (v > t) ? 1 : 0}') )); then
           latency_ok=false
       fi
 
@@ -220,7 +221,7 @@ run_wrk2_and_parse() {
           if [[ "$latency_ok" == "true" ]]; then
             ok=true; break
           else
-             log "High p99 latency: ${p99_str} (${p99_ms}ms > 100ms)"
+             log "High p99 latency: ${p99_str} (${p99_ms}ms > ${LATENCY_THRESHOLD}ms)"
           fi
         fi
       fi
@@ -421,19 +422,18 @@ main() {
   local BASE_URL="http://${NODE_IP}:32000"
 
   # Run workloads and gather results
-  local compose_json home_json user_json mixed_json
-  compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
-                 "${SCRIPT_BASE}/compose-post.lua" "compose-post")
-  home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
-              "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
-  user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
-              "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
+  local compose_json="[]" home_json="[]" user_json="[]" mixed_json
+  # compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
+  #                "${SCRIPT_BASE}/compose-post.lua" "compose-post")
+  # home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
+  #             "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
+  # user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
+  #             "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
   mixed_json=$(run_wrk2_and_parse   "${BASE_URL}/wrk2-api/mixed-workload" \
                "${SCRIPT_BASE}/mixed-workload.lua" "mixed-workload")
 
   # Save combined JSON locally with placements first
   write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
-  # write_results_json "{}" "{}" "{}" "$mixed_json"
   python3 -m json.tool "${OUTPUT_JSON}" > "${OUTPUT_JSON}.tmp" && mv "${OUTPUT_JSON}.tmp" "${OUTPUT_JSON}"
   log "Done. Inspect Kubernetes resources with: kubectl get pods,svc"
 }

@@ -110,9 +110,9 @@ local function read_home_timeline()
 
 request = function()
     cur_time = math.floor(socket.gettime())
-    local read_home_timeline_ratio = 0.2
-    local read_user_timeline_ratio = 0.2
-    local compose_post_ratio       = 0.6
+    local read_home_timeline_ratio = 0.6
+    local read_user_timeline_ratio = 0.3
+    local compose_post_ratio       = 0.1
 
     local coin = math.random()
     if coin < read_home_timeline_ratio then
