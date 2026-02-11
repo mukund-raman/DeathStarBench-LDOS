@@ -196,8 +196,8 @@ if __name__ == "__main__":
     parser.add_argument("--configs", nargs="*", help="Config files to run or --all")
     parser.add_argument("--output", default="data", help="Output directory for text files")
     parser.add_argument("--num-runs", type=int, default=1)
-    parser.add_argument("--warmup", default="180s")
-    parser.add_argument("--duration", default="600s")
+    parser.add_argument("--warmup", default="120s")
+    parser.add_argument("--duration", default="200s")
     parser.add_argument("--rps", default=500)
     
     # Parse arguments
