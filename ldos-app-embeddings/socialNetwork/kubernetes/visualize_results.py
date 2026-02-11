@@ -40,10 +40,11 @@ if __name__ == "__main__":
                 
                 # Extract P99 latency (ms) for mixed-workload
                 target_workload = "mixed-workload"
-                run = data.get(target_workload, [])
-                if not run:
+                workload_data = data.get(target_workload, [])
+                if not workload_data:
                     print(f"Warning: No mixed-workload data in {filename}")
                     continue
+                run = workload_data if isinstance(workload_data, dict) else workload_data[0]
                 p99_str = run.get("p99")
                 p99_latency = 0.0
                 if p99_str:

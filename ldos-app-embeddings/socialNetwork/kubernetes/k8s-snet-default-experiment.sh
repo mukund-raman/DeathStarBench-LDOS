@@ -43,7 +43,7 @@ VERBOSE=false # set true to enable bash -x and verbose SSH
 OUTPUT_JSON="$(dirname "$0")/results/k8s-default-snet-results.json"
 
 # Retries/backoff for unhealthy runs
-MAX_RUN_RETRIES=4
+MAX_RUN_RETRIES=0
 RETRY_BACKOFF_SEC=5
 LATENCY_THRESHOLD=500
 
@@ -71,39 +71,32 @@ ensure_local_prereqs() {
   need_cmd curl
 }
 
-# Wait for the frontend of socialnet to be ready (~1 min timeout)
+# Wait for all pods to be ready (~10 min timeout)
 wait_for_frontend_ready() {
-  log "Waiting for frontend service to be Ready (Kubernetes)"
+  log "Waiting for all pods to be Ready..."
+  
+  # Wait for all deployments to be available
+  kubectl wait --for=condition=available --timeout=600s deployment --all || true
 
+  # Wait for all pods to be ready
+  kubectl wait --for=condition=ready --timeout=600s pod --all || true
+  
+  # Verify specifically that frontend is responding
+  log "Checking frontend service..."
+  local code="000"
   for _ in $(seq 1 60); do
-    if kubectl get pods -l "service=nginx-thrift" -o jsonpath='{.items[*].status.containerStatuses[*].ready}' 2>/dev/null | grep -q true; then
-      log "Frontend pod is Ready; checking HTTP endpoint on NodePort 32000"
-      
-      # Verify that the HTTP endpoint is responding (similar to Swarm script).
-      local code="000"
-      for _ in $(seq 1 60); do
-        # Use a high random ID to avoid conflict with initial social graph users (ids 0+)
-        local probe_id=$((RANDOM + 100000))
-        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
-          -X POST "http://${NODE_IP}:32000/wrk2-api/user/register" \
-          -d "first_name=probe&last_name=probe&username=probe_$RANDOM&password=x&user_id=$probe_id" || echo "000")
-        if [[ "$code" == "200" ]]; then
-          log "Registration endpoint ready (HTTP 200)"
-          return 0
-        fi
-        sleep 3
-      done
-      log "Frontend pod is Ready but HTTP endpoint did not return 200 within timeout (last code: ${code}). Proceeding anyway."
+    # Use a high random ID to avoid conflict with initial social graph users (ids 0+)
+    local probe_id=$((RANDOM + 100000))
+    code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 \
+      -X POST "http://${NODE_IP}:32000/wrk2-api/user/register" \
+      -d "first_name=probe&last_name=probe&username=probe_$RANDOM&password=x&user_id=$probe_id" || echo "000")
+    if [[ "$code" == "200" ]]; then
+      log "Registration endpoint ready (HTTP 200)"
       return 0
     fi
-    sleep 5
+    sleep 3
   done
-
-  log "Frontend never became Ready."
-  kubectl get pods -o wide
-  kubectl logs -l "service=nginx-thrift" --tail=100
-  # Do not hard-fail here: allow the rest of the script to try, so that
-  # temporary readiness issues do not permanently block experiments.
+  log "Frontend pod is Ready but HTTP endpoint did not return 200 within timeout (last code: ${code}). Proceeding anyway."
   return 0
 }
 
@@ -118,12 +111,57 @@ init_social_graph() {
       source "${ROOT_DIR}/.venv/bin/activate"
   fi
 
+  # Helper to clean mongo database
+  # clean_mongo() {
+  #   local svc=$1
+  #   local db=$2
+  #   # Find a pod that is Running and Ready
+  #   local pod=$(kubectl get pod -l service=$svc --field-selector=status.phase=Running -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
+  #   if [ -n "$pod" ]; then
+  #     log "Cleaning $svc ($db) on pod $pod..."
+  #     kubectl exec "$pod" -- mongo $db --eval "db.getCollectionNames().forEach(function(c){db[c].remove({});})" || true
+  #   else
+  #     log "Warning: Could not find running pod for $svc to clean"
+  #   fi
+  # }
+
+  # # Helper to create mongo index
+  # create_mongo_index() {
+  #   local svc=$1
+  #   local db=$2
+  #   local cmd=$3
+  #   # Find a pod that is Running and Ready
+  #   local pod=$(kubectl get pod -l service=$svc --field-selector=status.phase=Running -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
+  #   if [ -n "$pod" ]; then
+  #     log "Creating index for $svc ($db) on pod $pod..."
+  #     kubectl exec "$pod" -- mongo $db --eval "$cmd" || true
+  #   else
+  #     log "Warning: Could not find running pod for $svc to create index"
+  #   fi
+  # }
+
+  # # Clean existing data to prevent conflicts/accumulation
+  # clean_mongo "user-mongodb" "user"
+  # clean_mongo "social-graph-mongodb" "social-graph"
+  # clean_mongo "post-storage-mongodb" "post"
+  # clean_mongo "user-timeline-mongodb" "user-timeline"
+  # clean_mongo "url-shorten-mongodb" "url-shorten"
+  # clean_mongo "media-mongodb" "media"
+
+  # # Create indexes to prevent COLLSCAN and high latency
+  # create_mongo_index "user-mongodb" "user" "db.user.createIndex({user_id: 1}, {unique: true}); db.user.createIndex({username: 1}, {unique: true})"
+  # create_mongo_index "social-graph-mongodb" "social-graph" "db.social_graph.createIndex({user_id: 1}); db.social_graph.createIndex({followee_id: 1})"
+  # create_mongo_index "post-storage-mongodb" "post" "db.post.createIndex({post_id: 1}, {unique: true})"
+  # create_mongo_index "user-timeline-mongodb" "user-timeline" "db.user_timeline.createIndex({user_id: 1}); db.user_timeline.createIndex({timestamp: -1})"
+  # create_mongo_index "url-shorten-mongodb" "url-shorten" "db['url-shorten'].createIndex({short_url: 1}, {unique: true})"
+  # create_mongo_index "media-mongodb" "media" "db.media.createIndex({media_id: 1}, {unique: true})"
+
   # Clean existing user data to prevent conflicts with previous runs
   log "Cleaning MongoDB user database..."
   local mongo_pod
   mongo_pod=$(kubectl get pod -l service=user-mongodb -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
   if [ -n "$mongo_pod" ]; then
-      kubectl exec "$mongo_pod" -- mongo user --eval "db.getCollectionNames().forEach(function(c){db[c].remove({});})" || true
+    kubectl exec "$mongo_pod" -- mongo user --eval "db.getCollectionNames().forEach(function(c){db[c].remove({});})" || true
   fi
 
   # Initialize social graph
@@ -180,19 +218,21 @@ run_wrk2_and_parse() {
 
       # 1) Check for Non-2xx line
       local bad_line
-      bad_line=$(printf "%s\n" "$out" | awk -F: '/Non-2xx or 3xx responses/ {gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2}')
+      bad_line=$(printf "%s\n" "$out" | awk -F: '/Non-2xx or 3xx responses/ {gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2}' | head -n 1)
 
       # 2) Ensure all per-thread files exist and contain numbers
       shopt -s nullglob
       local thread_files=("$rundir"/[0-9]*.txt)
       local thread_count=${#thread_files[@]}
-      local have_numbers
-      have_numbers=$(awk 'BEGIN{n=0} /^[0-9]+$/ {n=1} END{print n}' "${thread_files[@]:-}" 2>/dev/null || echo 0)
+      local have_numbers="0"
+      if (( thread_count > 0 )); then
+        have_numbers=$(awk 'BEGIN{n=0} /^[0-9]+$/ {n=1} END{print n}' "${thread_files[@]}" 2>/dev/null || echo 0)
+      fi
       shopt -u nullglob
 
       # 3) Check p99 latency
       local p99_str p99_val p99_unit p99_ms="0" latency_ok=true
-      p99_str=$(printf "%s\n" "$out" | awk '/^\s*99\.000%/ {print $2}')
+      p99_str=$(printf "%s\n" "$out" | awk '/^\s*99\.000%/ {print $2}' | head -n 1)
 
       # Parse p99 string (e.g. 12.34ms, 1.50s, 500us)
       if [[ "$p99_str" =~ ([0-9.]+)(ms|s|us) ]]; then
@@ -237,11 +277,11 @@ run_wrk2_and_parse() {
 
     # Parse percentiles from wrk2 output
     local p50 p90 p99 p999 rps ts
-    p50=$(printf "%s\n" "$out" | awk '/^\s*50\.000%/ {print $2}')
-    p90=$(printf "%s\n" "$out" | awk '/^\s*90\.000%/ {print $2}')
-    p99=$(printf "%s\n" "$out" | awk '/^\s*99\.000%/ {print $2}')
-    p999=$(printf "%s\n" "$out" | awk '/^\s*99\.900%/ {print $2}')
-    rps=$(printf "%s\n" "$out" | awk -F: '/Requests\/sec/ {gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2}')
+    p50=$(printf "%s\n" "$out" | awk '/^\s*50\.000%/ {print $2}' | head -n 1)
+    p90=$(printf "%s\n" "$out" | awk '/^\s*90\.000%/ {print $2}' | head -n 1)
+    p99=$(printf "%s\n" "$out" | awk '/^\s*99\.000%/ {print $2}' | head -n 1)
+    p999=$(printf "%s\n" "$out" | awk '/^\s*99\.900%/ {print $2}' | head -n 1)
+    rps=$(printf "%s\n" "$out" | awk -F: '/Requests\/sec/ {gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2}' | head -n 1)
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
     # Fallback if parsing failed
@@ -302,6 +342,7 @@ build_placements_json() {
   | jq '
       # Extract {nodeIdx, podNamePrefix} and group by node index
       .items
+      | map(select(.spec.nodeName != null and .metadata.name != null))
       | map({
           nodeIdx: (.spec.nodeName | capture("node(?<n>[0-9]+)") | .n | tonumber),
           pod: (.metadata.name | sub("-[a-z0-9]+-[a-z0-9]+$"; ""))
@@ -372,6 +413,9 @@ main() {
   # Ensure that prereqs are met
   ensure_local_prereqs
   if [ "${VERBOSE}" = "true" ]; then set -x; fi
+
+  # Cleanup any lingering wrk processes
+  pkill -x wrk || true
 
   # Clean previous run artifacts if specified
   local RUNS_ROOT

@@ -8,8 +8,6 @@
 # Usage: rand-search-experiment.sh <num-experiments>
 # Example: rand-search-experiment.sh 30
 
-# Result of running ~30 random configs - P17 is best
-
 # SSH key and user for worker nodes
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 SSH_USER="mkraman"

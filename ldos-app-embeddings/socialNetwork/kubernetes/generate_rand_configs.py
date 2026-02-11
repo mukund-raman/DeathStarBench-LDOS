@@ -52,7 +52,7 @@ def maximin_sample(pool, num_to_select, start_configs):
 # Save placement vector as a YAML config file
 def save_config(placement, nodes, services, filename):
     # Group services by node
-    node_mapping = {n: [] for n in nodes}
+    node_mapping = {n: [] for n in nodes[1:]}
     for svc_idx, node_idx in enumerate(placement):
         node_name = nodes[node_idx]
         svc_name = services[svc_idx]
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     
     # Create two starting configs to guide the maximin sampling
     start_configs = [
-        [i % num_nodes for i in range(num_services)], # Balanced
+        [(i % (num_nodes - 1)) + 1 for i in range(num_services)], # Balanced
         [1] * num_services # All on Node 1
     ]
 

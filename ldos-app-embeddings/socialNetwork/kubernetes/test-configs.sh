@@ -3,6 +3,7 @@
 # Given a config file, test the configs by pinning the microservices to the
 # nodes (using pin-microservices.sh) and running the experiment (using
 # k8s-snet-default-experiment.sh).
+
 # Usage: test-configs.sh <config-file>... | --all [-n|--num-runs <count>]
 # Example: test-configs.sh configs/config0.yml
 # Example: test-configs.sh configs/config0.yml configs/config1.yml
@@ -97,8 +98,8 @@ run_experiment() {
 }
 
 # Start the SSH agent
-eval "$(ssh-agent -s)"
-ssh-add "$SSH_KEY"
+# eval "$(ssh-agent -s)"
+# ssh-add "$SSH_KEY"
 
 # Parse arguments
 MODE=""

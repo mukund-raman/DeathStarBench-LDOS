@@ -26,7 +26,7 @@ context = ExperimentContext()
 # Save the placement vector as a YAML configuration file.
 def save_config(placement_vector, filename):
     # Group services by node
-    node_mapping = {n: [] for n in context.nodes}
+    node_mapping = {n: [] for n in context.nodes[1:]}
     for svc_idx, node_idx in enumerate(placement_vector):
         node_name = context.nodes[node_idx]
         svc_name = context.services[svc_idx]

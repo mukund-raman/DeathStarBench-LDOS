@@ -1,4 +1,5 @@
 node-placements:
+- node0: []
 - node1:
   - user-timeline-redis
 - node2:
