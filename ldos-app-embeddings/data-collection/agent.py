@@ -43,7 +43,13 @@ class CRICollector:
                     name = subprocess.check_output(meta_cmd, shell=True).decode().strip()
                     
                     if pid and name:
-                        new_map[cid] = {'pid': pid, 'name': name}
+                        mem_path, mem_version = self.find_cgroup_memory_path(cid)
+                        new_map[cid] = {
+                            'pid': pid, 
+                            'name': name,
+                            'mem_path': mem_path,
+                            'mem_version': mem_version
+                        }
                 except subprocess.CalledProcessError:
                     continue
             
@@ -113,13 +119,14 @@ class CRICollector:
         except subprocess.CalledProcessError:
             return None, None
 
-    def read_mem_metrics(self, cid):
+    def read_mem_metrics(self, mem_path, mem_version):
         """Reads rss, cache, pgfault from memory.stat"""
-        path, version = self.find_cgroup_memory_path(cid)
-        if not path:
+        if not mem_path:
             return 0, 0, 0
             
         rss, cache, pgfault = 0, 0, 0
+        path = mem_path
+        version = mem_version
         try:
             # Open memory.stat file and parse it
             with open(path, 'r') as f:
@@ -155,7 +162,7 @@ class CRICollector:
             name = info['name']
             rx, tx = self.read_net_metrics(pid)
             utime, stime = self.read_cpu_metrics(pid)
-            rss, cache, pgfault = self.read_mem_metrics(cid)
+            rss, cache, pgfault = self.read_mem_metrics(info.get('mem_path'), info.get('mem_version'))
             batch.append(f"{timestamp},{name},{utime},{stime},{rss},{cache},{pgfault},{rx},{tx}")
             
         return batch

@@ -12,3 +12,4 @@ wrk2/wrk
 .venv_backup
 runs
 __pycache__
+ldos-app-embeddings/data-collection/data

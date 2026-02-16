@@ -235,7 +235,7 @@ run_wrk2_and_parse() {
       p99_str=$(printf "%s\n" "$out" | awk '/^\s*99\.000%/ {print $2}' | head -n 1)
 
       # Parse p99 string (e.g. 12.34ms, 1.50s, 500us)
-      if [[ "$p99_str" =~ ([0-9.]+)(ms|s|us) ]]; then
+      if [[ "$p99_str" =~ ([0-9.]+)(ms|s|m|us) ]]; then
           p99_val="${BASH_REMATCH[1]}"
           p99_unit="${BASH_REMATCH[2]}"
       else
@@ -246,6 +246,7 @@ run_wrk2_and_parse() {
       case "$p99_unit" in
           "ms") p99_ms="$p99_val" ;;
           "s")  p99_ms=$(awk -v v="$p99_val" 'BEGIN {print v * 1000}') ;;
+          "m")  p99_ms=$(awk -v v="$p99_val" 'BEGIN {print v * 60 * 1000}') ;;
           "us") p99_ms=$(awk -v v="$p99_val" 'BEGIN {print v / 1000}') ;;
           *)    p99_ms="$p99_val" ;;
       esac

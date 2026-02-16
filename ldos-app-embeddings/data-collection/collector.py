@@ -73,7 +73,8 @@ def get_next_version(output_dir, config_name):
             continue
     return max_version + 1
 
-def run_experiment(config_files, num_runs, output_dir, warmup_duration, wrk_duration, wrk_rps):
+def run_experiment(config_files, num_runs, output_dir, results_output, \
+                   warmup_duration, wrk_duration, wrk_rps):
     """Runs the experiment for each config file."""
     # Ensure output dir exists
     if not os.path.exists(output_dir):
@@ -136,6 +137,10 @@ def run_experiment(config_files, num_runs, output_dir, warmup_duration, wrk_dura
             api_script_dir = "../socialNetwork/kubernetes"
             abs_config_path = os.path.abspath(config)
             cmd = ["./test-configs.sh", abs_config_path, "-n", "1"]
+            if results_output:
+                # Ensure absolute path since we change CWD when running the command
+                abs_results_output = os.path.abspath(results_output)
+                cmd.extend(["--output", abs_results_output])
             print(f"Running experiment: {' '.join(cmd)}, run {i} of {num_runs}")
             try:
                 subprocess.run(cmd, cwd=api_script_dir, env=env, check=True)
@@ -195,6 +200,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--configs", nargs="*", help="Config files to run or --all")
     parser.add_argument("--output", default="data", help="Output directory for text files")
+    parser.add_argument("--results-output", default=None, help="Output directory for experiment runs")
     parser.add_argument("--num-runs", type=int, default=1)
     parser.add_argument("--warmup", default="120s")
     parser.add_argument("--duration", default="200s")
@@ -209,4 +215,4 @@ if __name__ == "__main__":
     # Start the SSH agent and run experiment
     setup_ssh_agent() 
     run_experiment(args.configs, args.num_runs, args.output, \
-        args.warmup, args.duration, args.rps)
+        args.results_output, args.warmup, args.duration, args.rps)
