@@ -9,6 +9,8 @@
 #   --aggregate-folders  Aggregate results from results-config-* folders
 #   --run N              Specific run number to process (1, 2, ...)
 #   --config CONFIG_ID   Specific configuration ID to display
+#   --differences V1 V2  Calculate stats on latency differences between two versions
+#   --exclude-outliers   Exclude configs with avg P99 latency > threshold (500ms) (for --differences)
 
 set -e
 

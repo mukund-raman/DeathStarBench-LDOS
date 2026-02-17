@@ -34,6 +34,50 @@ def parse_run_number(name):
             
     return 1 # Default to run 1 if no run number is found
 
+def parse_p99_value(p99_str):
+    if isinstance(p99_str, (int, float)):
+        return float(p99_str)
+    p99_str = str(p99_str)
+    if p99_str.endswith("ms"):
+        return float(p99_str.replace("ms", ""))
+    if p99_str.endswith("us"):
+        return float(p99_str.replace("us", "")) / 1000.0
+    if p99_str.endswith("s"):
+        return float(p99_str.replace("s", "")) * 1000.0
+    if p99_str.endswith("m"):
+        return float(p99_str.replace("m", "")) * 60.0 * 1000.0
+    return float(p99_str)
+
+def get_latencies(data):
+    latencies = []
+    target_workload = "mixed-workload"
+    workload_data = data.get(target_workload, [])
+    if not workload_data:
+        return []
+        
+    runs = workload_data if isinstance(workload_data, list) else [workload_data]
+    for run in runs:
+        p99_str = run.get("p99")
+        if p99_str:
+            try:
+                val = parse_p99_value(p99_str)
+                latencies.append(val)
+            except ValueError:
+                pass
+    return latencies
+
+def get_avg_p99_from_file(filepath):
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        latencies = get_latencies(data)
+        if latencies:
+            return sum(latencies) / len(latencies)
+    except Exception as e:
+        # print(f"Warning: Error reading {filepath}: {e}")
+        pass
+    return None
+
 if __name__ == "__main__":
     # Parse arguments and verify results directory
     parser = argparse.ArgumentParser(description='Visualize Kubernetes Experiment Results')
@@ -41,15 +85,109 @@ if __name__ == "__main__":
     parser.add_argument('--config', help='Specific configuration ID to display (e.g., P0, P1-2)')
     parser.add_argument('--aggregate-folders', action='store_true', help='Aggregate results from results-config-* folders')
     parser.add_argument('--run', type=int, help='Specific run number to process (1, 2, ...)')
+    parser.add_argument('--differences', nargs=2, metavar=('V1', 'V2'), help='Calculate statistics on differences between two versions of configs')
+    parser.add_argument('--exclude-outliers', action='store_true', help=f'Exclude configs with avg P99 latency above {OUTLIER_THRESHOLD_MS} ms in either version')
     args = parser.parse_args()
     results_dir = args.results_dir
     target_config = args.config
     aggregate_folders = args.aggregate_folders
     target_run = args.run
+    exclude_threshold = OUTLIER_THRESHOLD_MS if args.exclude_outliers else None
 
     if not os.path.exists(results_dir):
         print(f"Error: Directory {results_dir} does not exist.")
         sys.exit(1)
+
+    # Mode 3: Differences
+    if args.differences:
+        v1_suffix, v2_suffix = args.differences
+        configs_v1 = {}
+        configs_v2 = {}
+        if not os.path.isdir(results_dir):
+             print(f"Error: {results_dir} is not a directory.")
+             sys.exit(1)
+             
+        files = [f for f in os.listdir(results_dir) if f.endswith(".json")]
+        for filename in files:
+            filepath = os.path.join(results_dir, filename)
+            val = get_avg_p99_from_file(filepath)
+            if val is None:
+                continue
+                
+            # Match V1
+            match_v1 = False
+            prefix_v1 = None
+            if filename.endswith(v1_suffix + ".json"):
+                # Extract prefix
+                suffix_len = len(v1_suffix) + 5 # 5 for ".json"
+                if suffix_len == 5: # v1_suffix is empty
+                    prefix_v1 = filename[:-5]
+                else:
+                    prefix_v1 = filename[:-suffix_len]
+                configs_v1[prefix_v1] = val
+                match_v1 = True
+                
+            # Match V2
+            if filename.endswith(v2_suffix + ".json"):
+                suffix_len = len(v2_suffix) + 5
+                if suffix_len == 5: # v2_suffix is empty
+                     prefix_v2 = filename[:-5]
+                else:
+                     prefix_v2 = filename[:-suffix_len]
+                configs_v2[prefix_v2] = val
+
+        # Find common prefixes and config-wise differences
+        common_prefixes = set(configs_v1.keys()) & set(configs_v2.keys())
+        differences = []
+        excluded_configs = []
+        
+        for prefix in common_prefixes:
+            val_v1 = configs_v1[prefix]
+            val_v2 = configs_v2[prefix]
+            
+            # Check for outliers exclusion
+            if exclude_threshold is not None:
+                if val_v1 > exclude_threshold or val_v2 > exclude_threshold:
+                    excluded_configs.append(prefix)
+                    continue
+            
+            diff = val_v2 - val_v1
+            differences.append(diff)
+            
+        if excluded_configs:
+            print(f"Excluded {len(excluded_configs)} configs due to outlier threshold (> {exclude_threshold} ms):")
+            for p in sorted(excluded_configs):
+                print(f"  - {p}")
+            print("-" * 50)
+            
+        if not differences:
+            print("No matching config pairs found for the given versions (after exclusion).")
+            sys.exit(0)
+            
+        # Calculate statistics
+        count = len(differences)
+        mean_val = np.mean(differences)
+        std_val = np.std(differences, ddof=1) if count > 1 else 0.0
+        min_val = np.min(differences)
+        p25 = np.percentile(differences, 25)
+        p50 = np.median(differences)
+        p75 = np.percentile(differences, 75)
+        max_val = np.max(differences)
+        
+        # Print results
+        print(f"Statistics for P99 Latency Differences (V2 - V1)")
+        print(f"V1 Suffix: '{v1_suffix}'")
+        print(f"V2 Suffix: '{v2_suffix}'")
+        print(f"--------------------------------------------------")
+        print(f"count: {count}")
+        print(f"mean:  {mean_val:.2f}")
+        print(f"std:   {std_val:.2f}")
+        print(f"min:   {min_val:.2f}")
+        print(f"25%:   {p25:.2f}")
+        print(f"50%:   {p50:.2f}")
+        print(f"75%:   {p75:.2f}")
+        print(f"max:   {max_val:.2f}")
+        sys.exit(0)
 
     # Iterate based on mode
     data_points = []
@@ -97,28 +235,9 @@ if __name__ == "__main__":
                         found_placements = True
                     
                     # Extract latencies
-                    target_workload = "mixed-workload"
-                    workload_data = data.get(target_workload, [])
-                    runs = workload_data if isinstance(workload_data, list) else [workload_data]
-                    for run in runs:
-                        p99_str = run.get("p99")
-                        if p99_str:
-                            try:
-                                if isinstance(p99_str, (int, float)):
-                                    val = float(p99_str)
-                                elif p99_str.endswith("ms"):
-                                    val = float(p99_str.replace("ms", ""))
-                                elif p99_str.endswith("us"):
-                                    val = float(p99_str.replace("us", "")) / 1000.0
-                                elif p99_str.endswith("s"):
-                                    val = float(p99_str.replace("s", "")) * 1000.0
-                                elif p99_str.endswith("m"):
-                                    val = float(p99_str.replace("m", "")) * 60.0 * 1000.0
-                                else:
-                                    val = float(p99_str)
-                                folder_p99_latencies.append(val)
-                            except ValueError:
-                                    print(f"Warning: Could not parse p99 '{p99_str}' in {dirname}/{filename}")
+                    lats = get_latencies(data)
+                    folder_p99_latencies.extend(lats)
+
                 except Exception as e:
                     print(f"Skipping file {dirname}/{filename}: {e}")
             if not folder_p99_latencies:
@@ -166,34 +285,10 @@ if __name__ == "__main__":
                         all_nodes.add(node)
                     
                     # Extract average P99 latency (ms) for mixed-workload
-                    target_workload = "mixed-workload"
-                    workload_data = data.get(target_workload, [])
-                    if not workload_data:
-                        print(f"Warning: No mixed-workload data in {filename}")
-                        continue
-                    runs = workload_data if isinstance(workload_data, list) else [workload_data]
-                    p99_latencies = []
-                    for run in runs:
-                        p99_str = run.get("p99")
-                        if p99_str:
-                            try:
-                                if isinstance(p99_str, (int, float)):
-                                    val = float(p99_str)
-                                elif p99_str.endswith("ms"):
-                                    val = float(p99_str.replace("ms", ""))
-                                elif p99_str.endswith("us"):
-                                    val = float(p99_str.replace("us", "")) / 1000.0
-                                elif p99_str.endswith("s"):
-                                    val = float(p99_str.replace("s", "")) * 1000.0
-                                elif p99_str.endswith("m"):
-                                    val = float(p99_str.replace("m", "")) * 60.0 * 1000.0
-                                else:
-                                    val = float(p99_str)
-                                p99_latencies.append(val)
-                            except ValueError:
-                                 print(f"Warning: Could not parse p99 '{p99_str}' in {filename}")
+                    p99_latencies = get_latencies(data)
                     if not p99_latencies:
-                        print(f"Warning: No valid p99 data in {filename}")
+                        # Warning commented out to avoid spam if files are mixed
+                        # print(f"Warning: No valid p99 data in {filename}")
                         continue
                     avg_p99_latency = sum(p99_latencies) / len(p99_latencies)
                     

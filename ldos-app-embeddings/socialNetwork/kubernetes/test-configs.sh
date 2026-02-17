@@ -98,8 +98,8 @@ run_experiment() {
 }
 
 # Start the SSH agent
-# eval "$(ssh-agent -s)"
-# ssh-add "$SSH_KEY"
+eval "$(ssh-agent -s)"
+ssh-add "$SSH_KEY"
 
 # Parse arguments
 MODE=""
