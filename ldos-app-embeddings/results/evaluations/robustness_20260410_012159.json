@@ -1,0 +1,9 @@
+[
+    {
+        "anomaly_type": "Network",
+        "target_node": "clnode218.clemson.cloudlab.us",
+        "baseline_p99": 38.01,
+        "recovery_time": 0.0,
+        "status": "FAIL_NO_SPIKE"
+    }
+]

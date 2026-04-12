@@ -1,0 +1,11 @@
+[
+    {
+        "cycle_time": 1775076705.495227,
+        "overloaded_node": 0,
+        "target_node": 2,
+        "evacuated_service": "media-mongodb",
+        "swap_service": null,
+        "gradient": -18.999999999999773,
+        "action": "evacuation"
+    }
+]

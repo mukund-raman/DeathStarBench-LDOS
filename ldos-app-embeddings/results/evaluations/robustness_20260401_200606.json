@@ -1,0 +1,9 @@
+[
+    {
+        "anomaly_type": "CPU",
+        "target_node": "clnode218.clemson.cloudlab.us",
+        "baseline_p99": 21.02,
+        "recovery_time": 0.0,
+        "status": "FAIL_NO_SPIKE"
+    }
+]

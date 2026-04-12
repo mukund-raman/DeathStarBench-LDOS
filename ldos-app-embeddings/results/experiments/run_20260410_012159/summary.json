@@ -1,0 +1,44 @@
+{
+    "timestamp": "20260410_012159",
+    "args": {
+        "no_data": true,
+        "no_train": true,
+        "optimizer_mode": "router",
+        "no_eval": false,
+        "no_bottleneck": false,
+        "run_optuna": false,
+        "exp_duration": 180
+    },
+    "phases_executed": {
+        "1_data_collection": {
+            "status": "bypassed",
+            "offline_samples": 33
+        },
+        "2_training": {
+            "status": "bypassed_loaded",
+            "model": "model_20260401_200606.pth"
+        },
+        "3_gradient_router": {
+            "status": "enabled"
+        },
+        "4_cbo_optimizer": {
+            "status": "bypassed"
+        },
+        "5_robustness_eval": {
+            "status": "evaluated",
+            "results": [
+                {
+                    "anomaly_type": "Network",
+                    "target_node": "clnode218.clemson.cloudlab.us",
+                    "baseline_p99": 38.01,
+                    "recovery_time": 0.0,
+                    "status": "FAIL_NO_SPIKE"
+                }
+            ]
+        },
+        "6_bottleneck_monitor": {
+            "status": "enabled"
+        }
+    },
+    "status": "success"
+}

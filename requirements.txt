@@ -40,3 +40,9 @@ thrift
 # Visualization
 matplotlib
 
+# Kubernetes
+kubernetes
+
+# Hyperparameter tuning
+optuna
+ray[tune]

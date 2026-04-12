@@ -1,0 +1,16 @@
+[
+    {
+        "anomaly_type": "CPU",
+        "target_node": "clnode218.clemson.cloudlab.us",
+        "baseline_p99": 999.0,
+        "recovery_time": 60.00011420249939,
+        "status": "PASS"
+    },
+    {
+        "anomaly_type": "Memory",
+        "target_node": "clnode198.clemson.cloudlab.us",
+        "baseline_p99": 999.0,
+        "recovery_time": 60.00011992454529,
+        "status": "PASS"
+    }
+]

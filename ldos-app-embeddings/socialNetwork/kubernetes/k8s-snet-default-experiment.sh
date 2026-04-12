@@ -111,51 +111,6 @@ init_social_graph() {
       source "${ROOT_DIR}/.venv/bin/activate"
   fi
 
-  # Helper to clean mongo database
-  # clean_mongo() {
-  #   local svc=$1
-  #   local db=$2
-  #   # Find a pod that is Running and Ready
-  #   local pod=$(kubectl get pod -l service=$svc --field-selector=status.phase=Running -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
-  #   if [ -n "$pod" ]; then
-  #     log "Cleaning $svc ($db) on pod $pod..."
-  #     kubectl exec "$pod" -- mongo $db --eval "db.getCollectionNames().forEach(function(c){db[c].remove({});})" || true
-  #   else
-  #     log "Warning: Could not find running pod for $svc to clean"
-  #   fi
-  # }
-
-  # # Helper to create mongo index
-  # create_mongo_index() {
-  #   local svc=$1
-  #   local db=$2
-  #   local cmd=$3
-  #   # Find a pod that is Running and Ready
-  #   local pod=$(kubectl get pod -l service=$svc --field-selector=status.phase=Running -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || echo "")
-  #   if [ -n "$pod" ]; then
-  #     log "Creating index for $svc ($db) on pod $pod..."
-  #     kubectl exec "$pod" -- mongo $db --eval "$cmd" || true
-  #   else
-  #     log "Warning: Could not find running pod for $svc to create index"
-  #   fi
-  # }
-
-  # # Clean existing data to prevent conflicts/accumulation
-  # clean_mongo "user-mongodb" "user"
-  # clean_mongo "social-graph-mongodb" "social-graph"
-  # clean_mongo "post-storage-mongodb" "post"
-  # clean_mongo "user-timeline-mongodb" "user-timeline"
-  # clean_mongo "url-shorten-mongodb" "url-shorten"
-  # clean_mongo "media-mongodb" "media"
-
-  # # Create indexes to prevent COLLSCAN and high latency
-  # create_mongo_index "user-mongodb" "user" "db.user.createIndex({user_id: 1}, {unique: true}); db.user.createIndex({username: 1}, {unique: true})"
-  # create_mongo_index "social-graph-mongodb" "social-graph" "db.social_graph.createIndex({user_id: 1}); db.social_graph.createIndex({followee_id: 1})"
-  # create_mongo_index "post-storage-mongodb" "post" "db.post.createIndex({post_id: 1}, {unique: true})"
-  # create_mongo_index "user-timeline-mongodb" "user-timeline" "db.user_timeline.createIndex({user_id: 1}); db.user_timeline.createIndex({timestamp: -1})"
-  # create_mongo_index "url-shorten-mongodb" "url-shorten" "db['url-shorten'].createIndex({short_url: 1}, {unique: true})"
-  # create_mongo_index "media-mongodb" "media" "db.media.createIndex({media_id: 1}, {unique: true})"
-
   # Clean existing user data to prevent conflicts with previous runs
   log "Cleaning MongoDB user database..."
   local mongo_pod
@@ -467,18 +422,10 @@ main() {
   local BASE_URL="http://${NODE_IP}:32000"
 
   # Run workloads and gather results
-  local compose_json="[]" home_json="[]" user_json="[]" mixed_json
-  # compose_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/post/compose" \
-  #                "${SCRIPT_BASE}/compose-post.lua" "compose-post")
-  # home_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/home-timeline/read" \
-  #             "${SCRIPT_BASE}/read-home-timeline.lua" "read-home-timelines")
-  # user_json=$(run_wrk2_and_parse    "${BASE_URL}/wrk2-api/user-timeline/read" \
-  #             "${SCRIPT_BASE}/read-user-timeline.lua" "read-user-timelines")
-  mixed_json=$(run_wrk2_and_parse   "${BASE_URL}/wrk2-api/mixed-workload" \
-               "${SCRIPT_BASE}/mixed-workload.lua" "mixed-workload")
+  local mixed_json=$(run_wrk2_and_parse "${BASE_URL}/wrk2-api/mixed-workload" "${SCRIPT_BASE}/mixed-workload.lua" "mixed-workload")
 
   # Save combined JSON locally with placements first
-  write_results_json "$compose_json" "$home_json" "$user_json" "$mixed_json"
+  write_results_json "[]" "[]" "[]" "$mixed_json"
   python3 -m json.tool "${OUTPUT_JSON}" > "${OUTPUT_JSON}.tmp" && mv "${OUTPUT_JSON}.tmp" "${OUTPUT_JSON}"
   log "Done. Inspect Kubernetes resources with: kubectl get pods,svc"
 }

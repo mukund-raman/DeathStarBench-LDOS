@@ -1,0 +1,23 @@
+[
+    {
+        "anomaly_type": "CPU",
+        "target_node": "clnode218.clemson.cloudlab.us",
+        "baseline_p99": 30.93,
+        "recovery_time": 0.0,
+        "status": "FAIL_NO_SPIKE"
+    },
+    {
+        "anomaly_type": "Memory",
+        "target_node": "clnode198.clemson.cloudlab.us",
+        "baseline_p99": 33.57,
+        "recovery_time": 0.0,
+        "status": "FAIL_NO_SPIKE"
+    },
+    {
+        "anomaly_type": "Network",
+        "target_node": "clnode216.clemson.cloudlab.us",
+        "baseline_p99": 33.57,
+        "recovery_time": 0.0,
+        "status": "FAIL_NO_SPIKE"
+    }
+]

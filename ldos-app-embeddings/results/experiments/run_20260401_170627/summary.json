@@ -1,0 +1,17 @@
+{
+    "timestamp": "20260401_170627",
+    "args": {
+        "no_data": false,
+        "no_train": false,
+        "optimizer_mode": "none",
+        "no_eval": false,
+        "no_bottleneck": false,
+        "run_optuna": false,
+        "exp_duration": 300
+    },
+    "phases_executed": {
+        "training": "completed",
+        "robustness_eval": "evaluated"
+    },
+    "status": "success"
+}

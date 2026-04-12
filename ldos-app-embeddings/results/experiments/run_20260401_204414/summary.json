@@ -1,0 +1,17 @@
+{
+    "timestamp": "20260401_204414",
+    "args": {
+        "no_data": true,
+        "no_train": true,
+        "optimizer_mode": "router",
+        "no_eval": false,
+        "no_bottleneck": false,
+        "run_optuna": false,
+        "exp_duration": 180
+    },
+    "phases_executed": {
+        "training": "bypassed_loaded_model_20260401_200606.pth",
+        "robustness_eval": "evaluated"
+    },
+    "status": "success"
+}
